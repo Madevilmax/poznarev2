@@ -961,6 +961,13 @@
                         </div>
 
                         <div class="filter-group">
+                            <label>Инициатор:</label>
+                            <select id="initiatorFilter" class="form-control">
+                                <option value="all">Все инициаторы</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
                             <label>Сортировка:</label>
                             <select id="sortFilter" class="form-control">
                                 <option value="newest">Сначала новые</option>
@@ -977,14 +984,6 @@
                             <div class="filter-group">
                                 <label>Срок до:</label>
                                 <input type="date" id="deadlineTo" class="form-control">
-                            </div>
-                            <div class="filter-group">
-                                <label>Назначена от:</label>
-                                <input type="date" id="createdFrom" class="form-control">
-                            </div>
-                            <div class="filter-group">
-                                <label>Назначена до:</label>
-                                <input type="date" id="createdTo" class="form-control">
                             </div>
                         </div>
                     </div>
@@ -1103,8 +1102,6 @@
             let currentSort = 'newest';
             let deadlineFromFilter = '';
             let deadlineToFilter = '';
-            let createdFromFilter = '';
-            let createdToFilter = '';
             let autoRefreshInterval = null;
             let allUsers = [];
             let userDirectory = {};
@@ -1114,6 +1111,9 @@
             let taskGroups = [];
             let newSelectedUsers = [];
             let notificationSettings = {};
+            let currentAssignerFilter = 'all';
+            let currentInitiatorFilter = 'all';
+            let expandedGroups = new Set();
 
             // Загрузка данных при старте
             document.addEventListener('DOMContentLoaded', function () {
@@ -1418,7 +1418,7 @@
             async function loadTasks(statusFilter = 'all', userFilter = 'all', sort = 'newest') {
                 try {
                     console.log(
-                        `📋 Загрузка задач: статус=${statusFilter}, пользователь=${userFilter}, назначил=${currentAssignerFilter}, сортировка=${sort}`
+                        `📋 Загрузка задач: статус=${statusFilter}, пользователь=${userFilter}, назначил=${currentAssignerFilter}, инициатор=${currentInitiatorFilter}, сортировка=${sort}`
                     );
                     const response = await fetch(`${API_BASE}/tasks`);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -1430,6 +1430,7 @@
 
                     currentTasks = data.tasks || [];
                     updateAssignerFilterOptions(currentTasks);
+                    updateInitiatorFilterOptions(currentTasks);
                     console.log(`📋 Загружено задач: ${currentTasks.length}`);
                     groupTasks(currentTasks, statusFilter, userFilter, sort);
                 } catch (error) {
@@ -1496,12 +1497,6 @@
                     deadlineTo.setHours(23, 59, 59, 999);
                 }
 
-                const createdFrom = createdFromFilter ? new Date(createdFromFilter) : null;
-                const createdTo = createdToFilter ? new Date(createdToFilter) : null;
-                if (createdTo) {
-                    createdTo.setHours(23, 59, 59, 999);
-                }
-
                 if (groups.length === 0) {
                     container.innerHTML = `
                         <div class="empty-state">
@@ -1514,7 +1509,15 @@
                 }
 
                 let filteredGroups = groups.filter(group => {
-                    const relevantTasks = group.tasks.filter(task => userFilter === 'all' || task.assigned_to === userFilter);
+                    const relevantTasks = group.tasks.filter(task => {
+                        const matchesUser = userFilter === 'all' || task.assigned_to === userFilter;
+                        const matchesAssigner = currentAssignerFilter === 'all'
+                            || normalizeUsername(task.assigned_by || '') === currentAssignerFilter;
+                        const matchesInitiator = currentInitiatorFilter === 'all'
+                            || normalizeUsername(task.initiator || '') === currentInitiatorFilter;
+
+                        return matchesUser && matchesAssigner && matchesInitiator;
+                    });
 
                     if (relevantTasks.length === 0) return false;
 
@@ -1538,18 +1541,7 @@
                         });
                     })();
 
-                    const matchesCreated = (() => {
-                        if (!createdFrom && !createdTo) return true;
-                        return relevantTasks.some(task => {
-                            const created = parseCreatedAt(task.created_at);
-                            if (!created) return false;
-                            if (createdFrom && created < createdFrom) return false;
-                            if (createdTo && created > createdTo) return false;
-                            return true;
-                        });
-                    })();
-
-                    return matchesStatus && matchesDeadline && matchesCreated;
+                    return matchesStatus && matchesDeadline;
                 });
 
                 console.log(`👁️ Отфильтровано групп: ${filteredGroups.length} из ${groups.length}`);
@@ -1668,6 +1660,21 @@
                 return group ? group.title : `Группа ${groupId}`;
             }
 
+            function normalizeUsername(username) {
+                if (!username) return '';
+                const trimmed = username.trim();
+                if (!trimmed) return '';
+                const normalized = trimmed.startsWith('@') ? trimmed : `@${trimmed}`;
+                return normalized.toLowerCase();
+            }
+
+            function getPersonDisplayName(username) {
+                const normalized = normalizeUsername(username);
+                if (!normalized) return 'Неизвестно';
+                const displayName = getUserDisplayName(normalized);
+                return `${displayName} (${normalized})`;
+            }
+
             function updateAssignerFilterOptions(tasks) {
                 const assignerFilter = document.getElementById('assignerFilter');
                 if (!assignerFilter) return;
@@ -1678,19 +1685,16 @@
                 tasks.forEach(task => {
                     const normalized = normalizeUsername(task.assigned_by || '');
                     if (!normalized) return;
-                    if (!assignerMap.has(normalized)) {
-                        assignerMap.set(normalized, task.assigned_by || normalized);
-                    }
+                    assignerMap.set(normalized, task.assigned_by || normalized);
                 });
 
-                availableAssigners = Array.from(assignerMap.keys()).sort((a, b) => a.localeCompare(b));
+                const availableAssigners = Array.from(assignerMap.keys()).sort((a, b) => a.localeCompare(b));
 
                 assignerFilter.innerHTML = '<option value="all">Все назначающие</option>';
                 availableAssigners.forEach(key => {
                     const option = document.createElement('option');
-                    const rawValue = assignerMap.get(key);
                     option.value = key;
-                    option.textContent = getAssignerDisplayName(rawValue, key);
+                    option.textContent = getPersonDisplayName(assignerMap.get(key));
                     assignerFilter.appendChild(option);
                 });
 
@@ -1700,6 +1704,38 @@
                 } else {
                     assignerFilter.value = 'all';
                     currentAssignerFilter = 'all';
+                }
+            }
+
+            function updateInitiatorFilterOptions(tasks) {
+                const initiatorFilter = document.getElementById('initiatorFilter');
+                if (!initiatorFilter) return;
+
+                const previousSelection = currentInitiatorFilter;
+                const initiatorMap = new Map();
+
+                tasks.forEach(task => {
+                    const normalized = normalizeUsername(task.initiator || '');
+                    if (!normalized) return;
+                    initiatorMap.set(normalized, task.initiator || normalized);
+                });
+
+                const availableInitiators = Array.from(initiatorMap.keys()).sort((a, b) => a.localeCompare(b));
+
+                initiatorFilter.innerHTML = '<option value="all">Все инициаторы</option>';
+                availableInitiators.forEach(key => {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = getPersonDisplayName(initiatorMap.get(key));
+                    initiatorFilter.appendChild(option);
+                });
+
+                if (previousSelection !== 'all' && initiatorMap.has(previousSelection)) {
+                    initiatorFilter.value = previousSelection;
+                    currentInitiatorFilter = previousSelection;
+                } else {
+                    initiatorFilter.value = 'all';
+                    currentInitiatorFilter = 'all';
                 }
             }
 
@@ -1725,18 +1761,6 @@
                 try {
                     const [day, month, year] = dateStr.split('.');
                     return new Date(year, month - 1, day);
-                } catch {
-                    return null;
-                }
-            }
-
-            function parseCreatedAt(dateTimeStr) {
-                if (!dateTimeStr) return null;
-                try {
-                    const [datePart, timePart = '00:00:00'] = dateTimeStr.split(' ');
-                    const [day, month, year] = datePart.split('.');
-                    const [hours, minutes, seconds] = timePart.split(':');
-                    return new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0);
                 } catch {
                     return null;
                 }
@@ -2385,21 +2409,25 @@
                     loadTasks(currentFilter, currentUserFilter, currentSort);
                 });
 
+                // Фильтр по инициатору
+                document.getElementById('initiatorFilter').addEventListener('change', function () {
+                    currentInitiatorFilter = this.value;
+                    loadTasks(currentFilter, currentUserFilter, currentSort);
+                });
+
                 // Сортировка
                 document.getElementById('sortFilter').addEventListener('change', function () {
                     currentSort = this.value;
                     loadTasks(currentFilter, currentUserFilter, currentSort);
                 });
 
-                ['deadlineFrom', 'deadlineTo', 'createdFrom', 'createdTo'].forEach(id => {
+                ['deadlineFrom', 'deadlineTo'].forEach(id => {
                     const element = document.getElementById(id);
                     if (!element) return;
 
                     element.addEventListener('change', function () {
                         if (id === 'deadlineFrom') deadlineFromFilter = this.value;
                         if (id === 'deadlineTo') deadlineToFilter = this.value;
-                        if (id === 'createdFrom') createdFromFilter = this.value;
-                        if (id === 'createdTo') createdToFilter = this.value;
 
                         loadTasks(currentFilter, currentUserFilter, currentSort);
                     });
