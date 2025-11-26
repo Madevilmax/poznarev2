@@ -125,6 +125,26 @@ class TaskManagerBot:
         """Сохраняет пользователей в файл"""
         return self.save_data(users_data, self.users_file)
 
+    @staticmethod
+    def normalize_username(username: str) -> str:
+        """Приводит логин к формату @username без пробелов"""
+        if not username:
+            return ""
+        cleaned = str(username).strip()
+        cleaned = cleaned if cleaned.startswith("@") else f"@{cleaned}"
+        return cleaned
+
+    def resolve_username_key(self, users_data: Dict, username: str) -> str:
+        """Возвращает существующий ключ пользователя с учетом регистра, чтобы избежать дублей"""
+        normalized = self.normalize_username(username)
+        canonical = normalized.lower()
+
+        for existing_username in users_data.get("all_users", {}).keys():
+            if isinstance(existing_username, str) and existing_username.lower() == canonical:
+                return existing_username
+
+        return normalized
+
     def get_config(self):
         """Получает актуальную конфигурацию из файла"""
         return self.load_data(self.config_file, {
@@ -388,17 +408,23 @@ class TaskManagerBot:
         """Автоматически добавляет пользователя в список группы и общий список"""
         try:
             group_id = str(chat_id)
-            
+            normalized_username = self.normalize_username(username)
+            safe_full_name = (full_name or "").strip() or normalized_username
+
             if group_title is None:
                 group_title = f"Группа {group_id}"
-            
+
             users_data = self.get_users()
-            
-            if "groups" not in users_data:
-                users_data["groups"] = {}
+
             if "all_users" not in users_data:
                 users_data["all_users"] = {}
-            
+
+            if "groups" not in users_data:
+                users_data["groups"] = {}
+
+            resolved_username = self.resolve_username_key(users_data, normalized_username)
+            canonical = resolved_username.lower()
+
             if group_id not in users_data["groups"]:
                 users_data["groups"][group_id] = {
                     "title": group_title,
@@ -408,28 +434,46 @@ class TaskManagerBot:
                 logging.info(f"✅ Создана новая группа: {group_title} ({group_id})")
             
             current_time = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-            if username not in users_data["groups"][group_id]["users"]:
-                users_data["groups"][group_id]["users"][username] = {
-                    "full_name": full_name,
-                    "added_at": current_time,
-                    "last_seen": current_time
-                }
-                logging.info(f"✅ Добавлен пользователь {username} в группу {group_title}")
-            else:
-                users_data["groups"][group_id]["users"][username]["last_seen"] = current_time
-            
-            if username not in users_data["all_users"]:
-                users_data["all_users"][username] = {
-                    "full_name": full_name,
-                    "first_seen": current_time,
-                    "groups": [group_id],
-                    "last_seen": current_time
-                }
-            else:
-                if group_id not in users_data["all_users"][username]["groups"]:
-                    users_data["all_users"][username]["groups"].append(group_id)
-                users_data["all_users"][username]["last_seen"] = current_time
-            
+
+            group_users = users_data["groups"][group_id].setdefault("users", {})
+            duplicate_group_users = [u for u in list(group_users.keys())
+                                     if isinstance(u, str) and u.lower() == canonical and u != resolved_username]
+
+            for duplicate_key in duplicate_group_users:
+                duplicate_entry = group_users.pop(duplicate_key, {})
+                target_entry = group_users.setdefault(resolved_username, {})
+                target_entry.setdefault("added_at", duplicate_entry.get("added_at", current_time))
+                target_entry["last_seen"] = current_time
+                target_entry["full_name"] = safe_full_name or duplicate_entry.get("full_name", resolved_username)
+
+            group_user_entry = group_users.get(resolved_username, {})
+            group_user_entry.setdefault("added_at", current_time)
+            group_user_entry["last_seen"] = current_time
+            group_user_entry["full_name"] = safe_full_name or group_user_entry.get("full_name", resolved_username)
+            group_users[resolved_username] = group_user_entry
+
+            all_users = users_data["all_users"]
+            duplicate_global_users = [u for u in list(all_users.keys())
+                                      if isinstance(u, str) and u.lower() == canonical and u != resolved_username]
+
+            user_entry = all_users.get(resolved_username, {})
+            for duplicate_key in duplicate_global_users:
+                duplicate_entry = all_users.pop(duplicate_key, {})
+                merged_groups = set(user_entry.get("groups", [])) | set(duplicate_entry.get("groups", []))
+                user_entry["groups"] = sorted(merged_groups)
+                if not user_entry.get("first_seen") and duplicate_entry.get("first_seen"):
+                    user_entry["first_seen"] = duplicate_entry.get("first_seen")
+
+            user_entry.setdefault("first_seen", current_time)
+            user_entry.setdefault("groups", [])
+            if group_id not in user_entry["groups"]:
+                user_entry["groups"].append(group_id)
+            user_entry["groups"] = sorted(set(user_entry["groups"]))
+            user_entry["full_name"] = safe_full_name or user_entry.get("full_name", resolved_username)
+            user_entry["last_seen"] = current_time
+
+            all_users[resolved_username] = user_entry
+
             self.save_users(users_data)
             
             config_data = self.get_config()
@@ -465,8 +509,17 @@ class TaskManagerBot:
         try:
             users_data = self.get_users()
             all_users = users_data.get("all_users", {})
-            # Фильтруем только строковые username
-            return [username for username in all_users.keys() if isinstance(username, str)]
+            seen = set()
+            result = []
+            for username in all_users.keys():
+                if not isinstance(username, str):
+                    continue
+                canonical = username.lower()
+                if canonical in seen:
+                    continue
+                seen.add(canonical)
+                result.append(username)
+            return result
         except Exception as e:
             logging.error(f"Ошибка получения списка пользователей: {e}")
             return []
@@ -486,11 +539,13 @@ class TaskManagerBot:
                 logging.error(f"Некорректный тип username: {type(username)} - {username}")
                 return str(username)
                 
+            normalized_username = self.normalize_username(username)
             users_data = self.get_users()
-            user_data = users_data.get("all_users", {}).get(username)
+            resolved_username = self.resolve_username_key(users_data, normalized_username)
+            user_data = users_data.get("all_users", {}).get(resolved_username)
             if user_data:
-                return user_data.get("full_name", username)
-            return username
+                return user_data.get("full_name", resolved_username)
+            return resolved_username
         except Exception as e:
             logging.error(f"Ошибка получения полного имени для {username}: {e}")
             return str(username)
@@ -510,10 +565,13 @@ class TaskManagerBot:
                 logging.error(f"Некорректный тип username: {type(username)} - {username}")
                 return str(username)
                 
-            full_name = self.get_user_full_name(username)
-            if full_name == username:
-                return username
-            return f"{full_name} ({username})"
+            normalized_username = self.normalize_username(username)
+            users_data = self.get_users()
+            resolved_username = self.resolve_username_key(users_data, normalized_username)
+            full_name = self.get_user_full_name(resolved_username)
+            if full_name == resolved_username:
+                return resolved_username
+            return f"{full_name} ({resolved_username})"
         except Exception as e:
             logging.error(f"Ошибка получения отображаемого имени для {username}: {e}")
             return str(username)
@@ -1083,67 +1141,47 @@ class TaskManagerBot:
                     del self.user_states[user.id]
                     await self.show_users_management(update, context)
                     return
-                
+
                 if state.get("step") == 1:
                     if not text.startswith('@'):
                         await self.safe_send_message(chat.id, "❌ Username должен начинаться с @. Попробуйте еще раз:", context.bot)
                         return
-                    
-                    state["new_username"] = text
+
+                    state["new_username"] = self.normalize_username(text)
                     state["step"] = 2
                     await self.safe_send_message(
-                        chat.id, 
+                        chat.id,
                         "Введите полное имя пользователя:",
                         context.bot,
                         reply_markup=ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True) if self.is_private_chat(chat.type) else None
                     )
                     return
-                
+
                 elif state.get("step") == 2:
-                    full_name = text
-                    new_username = state["new_username"]
-                    
-                    # Добавляем пользователя
-                    users_data = self.get_users()
-                    
-                    if "all_users" not in users_data:
-                        users_data["all_users"] = {}
-                    if "groups" not in users_data:
-                        users_data["groups"] = {}
-                    
-                    # Добавляем в общий список пользователей
-                    current_time = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-                    users_data["all_users"][new_username] = {
-                        "full_name": full_name,
-                        "first_seen": current_time,
-                        "groups": [str(chat.id)],
-                        "last_seen": current_time
-                    }
-                    
-                    # Добавляем в текущую группу
-                    group_id = str(chat.id)
-                    if group_id not in users_data["groups"]:
-                        users_data["groups"][group_id] = {
-                            "title": chat.title if hasattr(chat, 'title') else "Личный чат",
-                            "users": {},
-                            "created_at": current_time
-                        }
-                    
-                    users_data["groups"][group_id]["users"][new_username] = {
-                        "full_name": full_name,
-                        "added_at": current_time,
-                        "last_seen": current_time
-                    }
-                    
-                    if self.save_users(users_data):
-                        await self.safe_send_message(
-                            chat.id, 
-                            f"✅ Пользователь {new_username} ({full_name}) успешно добавлен!",
-                            context.bot
-                        )
-                    else:
-                        await self.safe_send_message(chat.id, "❌ Ошибка при сохранении пользователя", context.bot)
-                    
+                    full_name = text.strip()
+                    if not full_name:
+                        await self.safe_send_message(chat.id, "❌ Имя не может быть пустым. Введите имя:", context.bot)
+                        return
+
+                    new_username = self.normalize_username(state["new_username"])
+                    users_data_snapshot = self.get_users()
+                    resolved_username = self.resolve_username_key(users_data_snapshot, new_username)
+                    was_existing = resolved_username in users_data_snapshot.get("all_users", {})
+
+                    await self.add_user_to_group(
+                        chat.id,
+                        new_username,
+                        full_name,
+                        chat.title if hasattr(chat, 'title') else "Личный чат"
+                    )
+
+                    action_word = "обновлен" if was_existing else "добавлен"
+                    await self.safe_send_message(
+                        chat.id,
+                        f"✅ Пользователь {resolved_username} ({full_name}) успешно {action_word}!",
+                        context.bot
+                    )
+
                     del self.user_states[user.id]
                     await self.show_users_management(update, context)
                     return
