@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.log
+backups/
+telegram-bot/backups/
+telegram-bot/tasks.json
+telegram-bot/users.json
+telegram-bot/config.json
+telegram-bot/tasks.db
