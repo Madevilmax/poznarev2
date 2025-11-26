@@ -4,8 +4,9 @@ from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKe
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
 import json
 import os
-import shutil 
+import shutil
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, List, Optional
 import html
 import asyncio
@@ -61,10 +62,23 @@ class TaskManagerBot:
             if os.path.exists(filename):
                 with open(filename, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            else:
-                logging.warning(f"Файл {filename} не найден, создаем с данными по умолчанию")
-                self.save_data(default_data, filename)
-                return default_data.copy()
+
+            path = Path(filename)
+            example_candidates = [
+                path.with_name(f"{path.stem}.example{path.suffix}"),
+                Path(f"{filename}.example")
+            ]
+
+            for example_path in example_candidates:
+                if example_path.exists():
+                    logging.info(f"Создаем {filename} из шаблона {example_path.name}")
+                    shutil.copy2(example_path, filename)
+                    with open(filename, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+
+            logging.warning(f"Файл {filename} не найден, создаем с данными по умолчанию")
+            self.save_data(default_data, filename)
+            return default_data.copy()
         except Exception as e:
             logging.error(f"Ошибка загрузки {filename}: {e}")
             return default_data.copy()
