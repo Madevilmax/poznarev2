@@ -232,6 +232,14 @@
                 box-shadow: var(--shadow);
             }
 
+            .filter-row {
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
+                align-items: flex-end;
+                width: 100%;
+            }
+
             .filter-group {
                 display: flex;
                 flex-direction: column;
@@ -383,6 +391,28 @@
 
             .task-group-users {
                 padding: 0;
+            }
+
+            .task-group-users.collapsed {
+                display: none;
+            }
+
+            .group-toggle-btn {
+                border: none;
+                background: var(--light);
+                color: var(--primary-dark);
+                padding: 8px 12px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 700;
+                box-shadow: var(--shadow);
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .group-toggle-btn:hover {
+                background: #eef2ff;
             }
 
             .task-user-item {
@@ -931,6 +961,25 @@
                                 <option value="deadline">По сроку</option>
                             </select>
                         </div>
+
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>Срок от:</label>
+                                <input type="date" id="deadlineFrom" class="form-control">
+                            </div>
+                            <div class="filter-group">
+                                <label>Срок до:</label>
+                                <input type="date" id="deadlineTo" class="form-control">
+                            </div>
+                            <div class="filter-group">
+                                <label>Назначена от:</label>
+                                <input type="date" id="createdFrom" class="form-control">
+                            </div>
+                            <div class="filter-group">
+                                <label>Назначена до:</label>
+                                <input type="date" id="createdTo" class="form-control">
+                            </div>
+                        </div>
                     </div>
 
                     <div class="task-list" id="tasksContainer">
@@ -1045,6 +1094,10 @@
             let currentFilter = 'all';
             let currentUserFilter = 'all';
             let currentSort = 'newest';
+            let deadlineFromFilter = '';
+            let deadlineToFilter = '';
+            let createdFromFilter = '';
+            let createdToFilter = '';
             let autoRefreshInterval = null;
             let allUsers = [];
             let userDirectory = {};
@@ -1427,6 +1480,18 @@
             function displayTaskGroups(groups, statusFilter, userFilter) {
                 const container = document.getElementById('tasksContainer');
 
+                const deadlineFrom = deadlineFromFilter ? new Date(deadlineFromFilter) : null;
+                const deadlineTo = deadlineToFilter ? new Date(deadlineToFilter) : null;
+                if (deadlineTo) {
+                    deadlineTo.setHours(23, 59, 59, 999);
+                }
+
+                const createdFrom = createdFromFilter ? new Date(createdFromFilter) : null;
+                const createdTo = createdToFilter ? new Date(createdToFilter) : null;
+                if (createdTo) {
+                    createdTo.setHours(23, 59, 59, 999);
+                }
+
                 if (groups.length === 0) {
                     container.innerHTML = `
                         <div class="empty-state">
@@ -1439,25 +1504,42 @@
                 }
 
                 let filteredGroups = groups.filter(group => {
-                    // Фильтрация по статусу и пользователю на уровне группы
-                    const hasActiveTasks = group.tasks.some(task =>
-                        task.status === 'active' &&
-                        (userFilter === 'all' || task.assigned_to === userFilter)
-                    );
-                    const hasCompletedTasks = group.tasks.some(task =>
-                        task.status === 'completed' &&
-                        (userFilter === 'all' || task.assigned_to === userFilter)
-                    );
-                    const hasOverdueTasks = group.tasks.some(task =>
-                        task.status === 'active' &&
-                        isTaskOverdue(task) &&
-                        (userFilter === 'all' || task.assigned_to === userFilter)
-                    );
+                    const relevantTasks = group.tasks.filter(task => userFilter === 'all' || task.assigned_to === userFilter);
 
-                    if (statusFilter === 'active') return hasActiveTasks;
-                    if (statusFilter === 'completed') return hasCompletedTasks;
-                    if (statusFilter === 'overdue') return hasOverdueTasks;
-                    return true;
+                    if (relevantTasks.length === 0) return false;
+
+                    const hasActiveTasks = relevantTasks.some(task => task.status === 'active');
+                    const hasCompletedTasks = relevantTasks.some(task => task.status === 'completed');
+                    const hasOverdueTasks = relevantTasks.some(task => task.status === 'active' && isTaskOverdue(task));
+
+                    let matchesStatus = true;
+                    if (statusFilter === 'active') matchesStatus = hasActiveTasks;
+                    else if (statusFilter === 'completed') matchesStatus = hasCompletedTasks;
+                    else if (statusFilter === 'overdue') matchesStatus = hasOverdueTasks;
+
+                    const matchesDeadline = (() => {
+                        if (!deadlineFrom && !deadlineTo) return true;
+                        return relevantTasks.some(task => {
+                            const deadline = parseTaskDate(task.deadline);
+                            if (!deadline) return false;
+                            if (deadlineFrom && deadline < deadlineFrom) return false;
+                            if (deadlineTo && deadline > deadlineTo) return false;
+                            return true;
+                        });
+                    })();
+
+                    const matchesCreated = (() => {
+                        if (!createdFrom && !createdTo) return true;
+                        return relevantTasks.some(task => {
+                            const created = parseCreatedAt(task.created_at);
+                            if (!created) return false;
+                            if (createdFrom && created < createdFrom) return false;
+                            if (createdTo && created > createdTo) return false;
+                            return true;
+                        });
+                    })();
+
+                    return matchesStatus && matchesDeadline && matchesCreated;
                 });
 
                 console.log(`👁️ Отфильтровано групп: ${filteredGroups.length} из ${groups.length}`);
@@ -1478,6 +1560,7 @@
                     const groupName = getGroupName(group.group_id);
                     const completedCount = group.tasks.filter(task => task.status === 'completed').length;
                     const totalCount = group.tasks.length;
+                    const isExpanded = expandedGroups.has(group.id);
 
                     return `
                 <div class="task-group ${isOverdue ? 'overdue' : ''}">
@@ -1492,6 +1575,9 @@
                             </div>
                         </div>
                         <div class="task-group-actions">
+                            <button class="group-toggle-btn" onclick="toggleGroupVisibility('${group.id}')">
+                                ${isExpanded ? '🔼 Свернуть' : '🔽 Развернуть'}
+                            </button>
                             <button class="action-btn btn-edit" onclick="editTaskGroup('${group.id}')">
                                 ✏️ Изменить
                             </button>
@@ -1503,7 +1589,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="task-group-users">
+                    <div class="task-group-users ${isExpanded ? '' : 'collapsed'}">
                         ${group.tasks.map(task => {
                         const isTaskOverdueFlag = isTaskOverdue(task);
                         const userDisplayName = escapeHtml(getUserDisplayName(task.assigned_to));
@@ -1594,6 +1680,18 @@
                 try {
                     const [day, month, year] = dateStr.split('.');
                     return new Date(year, month - 1, day);
+                } catch {
+                    return null;
+                }
+            }
+
+            function parseCreatedAt(dateTimeStr) {
+                if (!dateTimeStr) return null;
+                try {
+                    const [datePart, timePart = '00:00:00'] = dateTimeStr.split(' ');
+                    const [day, month, year] = datePart.split('.');
+                    const [hours, minutes, seconds] = timePart.split(':');
+                    return new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0);
                 } catch {
                     return null;
                 }
@@ -1989,6 +2087,16 @@
                 newSelectedUsers = [];
             }
 
+            function toggleGroupVisibility(groupId) {
+                if (expandedGroups.has(groupId)) {
+                    expandedGroups.delete(groupId);
+                } else {
+                    expandedGroups.add(groupId);
+                }
+
+                displayTaskGroups(taskGroups, currentFilter, currentUserFilter);
+            }
+
             // Вспомогательные функции
             function safeString(value) {
                 if (value === null || value === undefined) {
@@ -2231,6 +2339,20 @@
                     currentSort = this.value;
                     loadTasks(currentFilter, currentUserFilter, currentSort);
                 });
+
+                ['deadlineFrom', 'deadlineTo', 'createdFrom', 'createdTo'].forEach(id => {
+                    const element = document.getElementById(id);
+                    if (!element) return;
+
+                    element.addEventListener('change', function () {
+                        if (id === 'deadlineFrom') deadlineFromFilter = this.value;
+                        if (id === 'deadlineTo') deadlineToFilter = this.value;
+                        if (id === 'createdFrom') createdFromFilter = this.value;
+                        if (id === 'createdTo') createdToFilter = this.value;
+
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                    });
+                });
             }
 
             // Принудительное обновление данных
@@ -2275,6 +2397,11 @@
             window.closeEditModal = closeEditModal;
             window.closeDeadlineModal = closeDeadlineModal;
             window.closeManageUsersModal = closeManageUsersModal;
+            window.toggleGroupVisibility = toggleGroupVisibility;
+            window.saveTaskGroupUsers = saveTaskGroupUsers;
+            window.changeTaskGroupDeadline = changeTaskGroupDeadline;
+            window.completeGroupTask = completeGroupTask;
+            window.reactivateGroupTask = reactivateGroupTask;
         </script>
     </body>
 

@@ -323,7 +323,7 @@ class TaskManagerBot:
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-    def get_task_actions_keyboard(self, task_id, is_completed=False):
+    def get_task_actions_keyboard(self, task_id, is_completed=False, allow_deadline_change=True):
         """Клавиатура действий для задачи"""
         if is_completed:
             keyboard = [
@@ -333,12 +333,11 @@ class TaskManagerBot:
                 ]
             ]
         else:
-            keyboard = [
-                [
-                    InlineKeyboardButton("✅ Завершить", callback_data=f"complete:{task_id}"),
-                    InlineKeyboardButton("⏰ Изменить срок", callback_data=f"change_deadline:{task_id}")
-                ]
-            ]
+            action_row = [InlineKeyboardButton("✅ Завершить", callback_data=f"complete:{task_id}")]
+            if allow_deadline_change:
+                action_row.append(InlineKeyboardButton("⏰ Изменить срок", callback_data=f"change_deadline:{task_id}"))
+
+            keyboard = [action_row]
         return InlineKeyboardMarkup(keyboard)
 
     async def safe_send_message(self, chat_id, text, bot, disable_notification=False, **kwargs):
@@ -631,7 +630,7 @@ class TaskManagerBot:
             
             for task in user_tasks:
                 task_text = self.format_task_text(task)
-                keyboard = self.get_task_actions_keyboard(task['id'], is_completed=False)
+                keyboard = self.get_task_actions_keyboard(task['id'], is_completed=False, allow_deadline_change=False)
                 
                 await self.safe_send_message(
                     chat.id,
@@ -659,12 +658,21 @@ class TaskManagerBot:
                 await self.safe_send_message(chat.id, "📭 У вас нет выполненных задач!", context.bot)
                 return
             
-            await self.safe_send_message(chat.id, f"✅ Ваши выполненные задачи ({len(user_tasks)}):", context.bot)
-            
-            for task in user_tasks:
+            # Показываем только последние 5 выполненных задач по дате завершения/создания
+            user_tasks.sort(
+                key=lambda t: self.parse_task_datetime(t.get("completed_at", ""))
+                or self.parse_task_datetime(t.get("created_at", ""))
+                or datetime.min,
+                reverse=True
+            )
+
+            limited_tasks = user_tasks[:5]
+            await self.safe_send_message(chat.id, f"✅ Ваши выполненные задачи (последние {len(limited_tasks)}):", context.bot)
+
+            for task in limited_tasks:
                 task_text = self.format_task_text(task)
                 keyboard = self.get_task_actions_keyboard(task['id'], is_completed=True)
-                
+
                 await self.safe_send_message(
                     chat.id,
                     task_text,
@@ -1719,6 +1727,20 @@ class TaskManagerBot:
             if user_id in self.user_states:
                 del self.user_states[user_id]
 
+            related_task_ids = task_ids or []
+            if not related_task_ids and task.get("group_task_id"):
+                related_task_ids = [t.get("id") for t in self.get_tasks().get("tasks", [])
+                                    if t.get("group_task_id") == task.get("group_task_id")]
+            if not related_task_ids:
+                related_task_ids = [task_id]
+
+            related_assignees = assigned_users or []
+            if not related_assignees and task.get("group_task_id"):
+                related_assignees = [t.get("assigned_to") for t in self.get_tasks().get("tasks", [])
+                                     if t.get("group_task_id") == task.get("group_task_id")]
+            if not related_assignees:
+                related_assignees = [task.get("assigned_to")]
+
             # Устанавливаем новое состояние для редактирования
             self.user_states[user_id] = {
                 "action": "edit_task_description",
@@ -1754,6 +1776,20 @@ class TaskManagerBot:
             user_id = update.effective_user.id
             if user_id in self.user_states:
                 del self.user_states[user_id]
+
+            related_task_ids = task_ids or []
+            if not related_task_ids and task.get("group_task_id"):
+                related_task_ids = [t.get("id") for t in self.get_tasks().get("tasks", [])
+                                    if t.get("group_task_id") == task.get("group_task_id")]
+            if not related_task_ids:
+                related_task_ids = [task_id]
+
+            related_assignees = assigned_users or []
+            if not related_assignees and task.get("group_task_id"):
+                related_assignees = [t.get("assigned_to") for t in self.get_tasks().get("tasks", [])
+                                     if t.get("group_task_id") == task.get("group_task_id")]
+            if not related_assignees:
+                related_assignees = [task.get("assigned_to")]
 
             self.user_states[user_id] = {
                 "action": "change_deadline_for_task",
@@ -1888,6 +1924,14 @@ class TaskManagerBot:
     async def change_deadline_direct(self, update: Update, context: CallbackContext, task_id: int, new_deadline: str, task_ids: Optional[List[int]] = None, assigned_users: Optional[List[str]] = None):
         """Непосредственно изменяет срок задачи"""
         try:
+            target_ids = task_ids or []
+            if not target_ids:
+                base_task = self.find_task_by_id(task_id)
+                if base_task and base_task.get("group_task_id"):
+                    target_ids = [t.get("id") for t in self.get_tasks().get("tasks", [])
+                                  if t.get("group_task_id") == base_task.get("group_task_id")]
+            if not target_ids:
+                target_ids = [task_id]
             target_ids = task_ids or [task_id]
             tasks_data = self.get_tasks()
             updated_any = False
@@ -2307,10 +2351,10 @@ class TaskManagerBot:
                 if not task:
                     await query.edit_message_text("❌ Задача не найдена!")
                     return
-                
-                # Проверка прав: пользователь может менять срок только своих задач
-                if task.get("assigned_to") != username and not is_admin_user:
-                    await query.edit_message_text("❌ Вы можете менять срок только своих задач!")
+
+                # Изменение срока доступно только из админ-панели
+                if not is_admin_user:
+                    await query.edit_message_text("⏰ Срок можно менять только через админ-панель")
                     return
 
                 await self.start_change_deadline_for_task(update, context, task_id)
