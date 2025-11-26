@@ -1007,6 +1007,7 @@ class TaskManagerBot:
                     self.parse_task_date(x.get('deadline', '')) or datetime.max.date(),
                     x.get('id', 0)
                 ))
+            state["tasks"] = self.get_filtered_tasks(task_filter, date_filter, group_filter)
             state["task_filter"] = task_filter
             state["date_filter"] = date_filter
             state["current_page"] = 0
