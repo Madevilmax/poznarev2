@@ -142,6 +142,7 @@
                 gap: 24px;
                 padding: 24px;
                 flex: 1;
+                min-height: 0;
             }
 
             .form-section {
@@ -213,6 +214,10 @@
 
             .tasks-section {
                 flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                min-height: 0;
             }
 
             .filters {
@@ -225,6 +230,14 @@
                 padding: 20px;
                 border-radius: 12px;
                 box-shadow: var(--shadow);
+            }
+
+            .filter-row {
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
+                align-items: flex-end;
+                width: 100%;
             }
 
             .filter-group {
@@ -268,9 +281,10 @@
                 display: flex;
                 flex-direction: column;
                 gap: 16px;
-                max-height: 600px;
                 overflow-y: auto;
                 padding-right: 8px;
+                flex: 1;
+                min-height: 0;
             }
 
             .task-group {
@@ -379,6 +393,28 @@
                 padding: 0;
             }
 
+            .task-group-users.collapsed {
+                display: none;
+            }
+
+            .group-toggle-btn {
+                border: none;
+                background: var(--light);
+                color: var(--primary-dark);
+                padding: 8px 12px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 700;
+                box-shadow: var(--shadow);
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .group-toggle-btn:hover {
+                background: #eef2ff;
+            }
+
             .task-user-item {
                 padding: 16px 20px;
                 border-bottom: 1px solid var(--border);
@@ -467,6 +503,58 @@
                 border-radius: 8px;
                 padding: 12px;
                 background: white;
+            }
+
+            .admin-card {
+                background: white;
+                border: 2px solid var(--border);
+                border-radius: 12px;
+                padding: 16px;
+                margin-top: 16px;
+                box-shadow: var(--shadow);
+            }
+
+            .admin-card h3 {
+                font-size: 1rem;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                color: var(--dark);
+            }
+
+            .small-input {
+                font-size: 0.85rem;
+                padding: 10px 12px;
+            }
+
+            .form-help {
+                font-size: 0.8rem;
+                color: var(--secondary);
+                margin-top: 6px;
+            }
+
+            .toggle-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 0;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .toggle-row:last-child {
+                border-bottom: none;
+            }
+
+            .toggle-row label {
+                font-weight: 600;
+                color: var(--dark);
+            }
+
+            .status-message {
+                margin-top: 10px;
+                font-size: 0.85rem;
+                color: var(--secondary);
             }
 
             .checkbox-item {
@@ -798,6 +886,52 @@
                             🎯 Создать задачу
                         </button>
                     </form>
+
+                    <div class="admin-card">
+                        <h3>👤 Управление пользователями</h3>
+                        <form id="userManagementForm">
+                            <div class="form-group">
+                                <label for="userLogin">Логин в Telegram:</label>
+                                <input id="userLogin" class="form-control small-input" placeholder="например, @user" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="userFullName">Имя сотрудника:</label>
+                                <input id="userFullName" class="form-control small-input" placeholder="Полное имя" required>
+                                <div class="form-help">Имена будут отображаться в списке задач и фильтрах.</div>
+                            </div>
+                            <div class="form-group">
+                                <label for="userGroups">Группы (через запятую):</label>
+                                <input id="userGroups" class="form-control small-input" placeholder="-100..., 123456" />
+                                <div class="form-help">Необязательно. Используйте ID групповых чатов для уведомлений.</div>
+                            </div>
+                            <button type="submit" class="btn-primary">💾 Сохранить пользователя</button>
+                            <div class="status-message" id="userStatusMessage"></div>
+                        </form>
+                    </div>
+
+                    <div class="admin-card">
+                        <h3>🔔 Настройки оповещений</h3>
+                        <form id="notificationForm">
+                            <div class="toggle-row">
+                                <label for="notifyCreated">Уведомлять о создании задач</label>
+                                <input type="checkbox" id="notifyCreated">
+                            </div>
+                            <div class="toggle-row">
+                                <label for="notifyCompleted">Уведомлять о выполнении задач</label>
+                                <input type="checkbox" id="notifyCompleted">
+                            </div>
+                            <div class="toggle-row">
+                                <label for="notifyDeleted">Уведомлять об удалении задач</label>
+                                <input type="checkbox" id="notifyDeleted">
+                            </div>
+                            <div class="toggle-row">
+                                <label for="notifyOverdue">Напоминания о просроченных задачах</label>
+                                <input type="checkbox" id="notifyOverdue">
+                            </div>
+                            <button type="submit" class="btn-primary">💾 Сохранить оповещения</button>
+                            <div class="status-message" id="notificationStatus"></div>
+                        </form>
+                    </div>
                 </div>
 
                 <div class="tasks-section">
@@ -826,6 +960,25 @@
                                 <option value="oldest">Сначала старые</option>
                                 <option value="deadline">По сроку</option>
                             </select>
+                        </div>
+
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>Срок от:</label>
+                                <input type="date" id="deadlineFrom" class="form-control">
+                            </div>
+                            <div class="filter-group">
+                                <label>Срок до:</label>
+                                <input type="date" id="deadlineTo" class="form-control">
+                            </div>
+                            <div class="filter-group">
+                                <label>Назначена от:</label>
+                                <input type="date" id="createdFrom" class="form-control">
+                            </div>
+                            <div class="filter-group">
+                                <label>Назначена до:</label>
+                                <input type="date" id="createdTo" class="form-control">
+                            </div>
                         </div>
                     </div>
 
@@ -941,13 +1094,20 @@
             let currentFilter = 'all';
             let currentUserFilter = 'all';
             let currentSort = 'newest';
+            let deadlineFromFilter = '';
+            let deadlineToFilter = '';
+            let createdFromFilter = '';
+            let createdToFilter = '';
             let autoRefreshInterval = null;
             let allUsers = [];
+            let userDirectory = {};
             let allGroups = [];
             let selectedUsers = [];
             let currentTasks = [];
             let taskGroups = [];
             let newSelectedUsers = [];
+            let notificationSettings = {};
+            const expandedGroups = new Set();
 
             // Загрузка данных при старте
             document.addEventListener('DOMContentLoaded', function () {
@@ -956,6 +1116,7 @@
                 loadTasks();
                 loadUsers();
                 loadGroups();
+                loadConfig();
                 setupEventListeners();
 
                 // Устанавливаем минимальную дату как сегодня
@@ -979,6 +1140,8 @@
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const data = await response.json();
 
+                    userDirectory = data.all_users || {};
+
                     // Извлекаем всех пользователей из структуры данных
                     const usersSet = new Set();
 
@@ -991,7 +1154,12 @@
                     if (data.groups) {
                         Object.values(data.groups).forEach(group => {
                             if (group.users) {
-                                Object.keys(group.users).forEach(user => usersSet.add(user));
+                                Object.keys(group.users).forEach(user => {
+                                    usersSet.add(user);
+                                    if (!userDirectory[user] && group.users[user]) {
+                                        userDirectory[user] = { full_name: group.users[user].full_name || user };
+                                    }
+                                });
                             }
                         });
                     }
@@ -1007,7 +1175,7 @@
                     allUsers.forEach(user => {
                         const option = document.createElement('option');
                         option.value = user;
-                        option.textContent = user;
+                        option.textContent = `${getUserDisplayName(user)} (${user})`;
                         userFilter.appendChild(option);
                     });
 
@@ -1051,6 +1219,24 @@
                 }
             }
 
+            // Загрузка конфигурации
+            async function loadConfig() {
+                try {
+                    const response = await fetch(`${API_BASE}/config`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+
+                    notificationSettings = data.notifications || {};
+                    document.getElementById('notifyCreated').checked = Boolean(notificationSettings.task_created);
+                    document.getElementById('notifyCompleted').checked = Boolean(notificationSettings.task_completed);
+                    document.getElementById('notifyDeleted').checked = Boolean(notificationSettings.task_deleted);
+                    document.getElementById('notifyOverdue').checked = Boolean(notificationSettings.overdue_reminder);
+                } catch (error) {
+                    console.error('❌ Ошибка загрузки конфигурации:', error);
+                    document.getElementById('notificationStatus').textContent = '❌ Не удалось загрузить оповещения';
+                }
+            }
+
             // Отображение групп
             function displayGroups() {
                 const container = document.getElementById('groupsContainer');
@@ -1084,12 +1270,15 @@
                     return;
                 }
 
-                container.innerHTML = allUsers.map(user => `
+                container.innerHTML = allUsers.map(user => {
+                    const name = getUserDisplayName(user);
+                    return `
                     <div class="checkbox-item">
                         <input type="checkbox" id="user_${user}" value="${user}" onchange="toggleUserSelection('${user}')">
-                        <label for="user_${user}">${escapeHtml(user)}</label>
+                        <label for="user_${user}">${escapeHtml(name)} (${escapeHtml(user)})</label>
                     </div>
-                `).join('');
+                `;
+                }).join('');
             }
 
             // Отображение чекбоксов для добавления исполнителей
@@ -1108,12 +1297,15 @@
                     return;
                 }
 
-                container.innerHTML = availableUsers.map(user => `
+                container.innerHTML = availableUsers.map(user => {
+                    const name = getUserDisplayName(user);
+                    return `
                     <div class="checkbox-item">
                         <input type="checkbox" id="available_user_${user}" value="${user}" onchange="toggleNewUserSelection('${user}')">
-                        <label for="available_user_${user}">${escapeHtml(user)}</label>
+                        <label for="available_user_${user}">${escapeHtml(name)} (${escapeHtml(user)})</label>
                     </div>
-                `).join('');
+                `;
+                }).join('');
             }
 
             // Обработка выбора пользователей
@@ -1154,7 +1346,7 @@
                 if (selectedUsers.length > 0) {
                     selectedUsersDiv.style.display = 'block';
                     selectedUsersList.innerHTML = selectedUsers.map(user =>
-                        `<span class="selected-user">${escapeHtml(user)}</span>`
+                        `<span class="selected-user">${escapeHtml(getUserDisplayName(user))}</span>`
                     ).join('');
                 } else {
                     selectedUsersDiv.style.display = 'none';
@@ -1169,7 +1361,7 @@
                 if (newSelectedUsers.length > 0) {
                     newSelectedUsersDiv.style.display = 'block';
                     newSelectedUsersList.innerHTML = newSelectedUsers.map(user =>
-                        `<span class="selected-user">${escapeHtml(user)}</span>`
+                        `<span class="selected-user">${escapeHtml(getUserDisplayName(user))}</span>`
                     ).join('');
                 } else {
                     newSelectedUsersDiv.style.display = 'none';
@@ -1289,6 +1481,18 @@
             function displayTaskGroups(groups, statusFilter, userFilter) {
                 const container = document.getElementById('tasksContainer');
 
+                const deadlineFrom = deadlineFromFilter ? new Date(deadlineFromFilter) : null;
+                const deadlineTo = deadlineToFilter ? new Date(deadlineToFilter) : null;
+                if (deadlineTo) {
+                    deadlineTo.setHours(23, 59, 59, 999);
+                }
+
+                const createdFrom = createdFromFilter ? new Date(createdFromFilter) : null;
+                const createdTo = createdToFilter ? new Date(createdToFilter) : null;
+                if (createdTo) {
+                    createdTo.setHours(23, 59, 59, 999);
+                }
+
                 if (groups.length === 0) {
                     container.innerHTML = `
                         <div class="empty-state">
@@ -1301,25 +1505,42 @@
                 }
 
                 let filteredGroups = groups.filter(group => {
-                    // Фильтрация по статусу и пользователю на уровне группы
-                    const hasActiveTasks = group.tasks.some(task =>
-                        task.status === 'active' &&
-                        (userFilter === 'all' || task.assigned_to === userFilter)
-                    );
-                    const hasCompletedTasks = group.tasks.some(task =>
-                        task.status === 'completed' &&
-                        (userFilter === 'all' || task.assigned_to === userFilter)
-                    );
-                    const hasOverdueTasks = group.tasks.some(task =>
-                        task.status === 'active' &&
-                        isTaskOverdue(task) &&
-                        (userFilter === 'all' || task.assigned_to === userFilter)
-                    );
+                    const relevantTasks = group.tasks.filter(task => userFilter === 'all' || task.assigned_to === userFilter);
 
-                    if (statusFilter === 'active') return hasActiveTasks;
-                    if (statusFilter === 'completed') return hasCompletedTasks;
-                    if (statusFilter === 'overdue') return hasOverdueTasks;
-                    return true;
+                    if (relevantTasks.length === 0) return false;
+
+                    const hasActiveTasks = relevantTasks.some(task => task.status === 'active');
+                    const hasCompletedTasks = relevantTasks.some(task => task.status === 'completed');
+                    const hasOverdueTasks = relevantTasks.some(task => task.status === 'active' && isTaskOverdue(task));
+
+                    let matchesStatus = true;
+                    if (statusFilter === 'active') matchesStatus = hasActiveTasks;
+                    else if (statusFilter === 'completed') matchesStatus = hasCompletedTasks;
+                    else if (statusFilter === 'overdue') matchesStatus = hasOverdueTasks;
+
+                    const matchesDeadline = (() => {
+                        if (!deadlineFrom && !deadlineTo) return true;
+                        return relevantTasks.some(task => {
+                            const deadline = parseTaskDate(task.deadline);
+                            if (!deadline) return false;
+                            if (deadlineFrom && deadline < deadlineFrom) return false;
+                            if (deadlineTo && deadline > deadlineTo) return false;
+                            return true;
+                        });
+                    })();
+
+                    const matchesCreated = (() => {
+                        if (!createdFrom && !createdTo) return true;
+                        return relevantTasks.some(task => {
+                            const created = parseCreatedAt(task.created_at);
+                            if (!created) return false;
+                            if (createdFrom && created < createdFrom) return false;
+                            if (createdTo && created > createdTo) return false;
+                            return true;
+                        });
+                    })();
+
+                    return matchesStatus && matchesDeadline && matchesCreated;
                 });
 
                 console.log(`👁️ Отфильтровано групп: ${filteredGroups.length} из ${groups.length}`);
@@ -1340,6 +1561,7 @@
                     const groupName = getGroupName(group.group_id);
                     const completedCount = group.tasks.filter(task => task.status === 'completed').length;
                     const totalCount = group.tasks.length;
+                    const isExpanded = expandedGroups.has(group.id);
 
                     return `
                 <div class="task-group ${isOverdue ? 'overdue' : ''}">
@@ -1354,6 +1576,9 @@
                             </div>
                         </div>
                         <div class="task-group-actions">
+                            <button class="group-toggle-btn" onclick="toggleGroupVisibility('${group.id}')">
+                                ${isExpanded ? '🔼 Свернуть' : '🔽 Развернуть'}
+                            </button>
                             <button class="action-btn btn-edit" onclick="editTaskGroup('${group.id}')">
                                 ✏️ Изменить
                             </button>
@@ -1365,10 +1590,10 @@
                             </button>
                         </div>
                     </div>
-                    <div class="task-group-users">
+                    <div class="task-group-users ${isExpanded ? '' : 'collapsed'}">
                         ${group.tasks.map(task => {
                         const isTaskOverdueFlag = isTaskOverdue(task);
-                        const userDisplayName = escapeHtml(task.assigned_to);
+                        const userDisplayName = escapeHtml(getUserDisplayName(task.assigned_to));
                         const userInitials = getInitials(task.assigned_to);
 
                         return `
@@ -1376,7 +1601,7 @@
                                 <div class="task-user-info">
                                     <div class="user-avatar">${userInitials}</div>
                                     <div class="user-details">
-                                        <div class="user-name">${userDisplayName}</div>
+                                        <div class="user-name">${userDisplayName} (${escapeHtml(task.assigned_to)})</div>
                                         <div class="user-status ${task.status === 'active' ? 'status-active' : 'status-completed'}">
                                             ${task.status === 'active' ? '🟡 Активна' : '🟢 Выполнена'}
                                             ${isTaskOverdueFlag ? ' 🔴 ПРОСРОЧЕНО' : ''}
@@ -1405,12 +1630,27 @@
                 }).join('');
             }
 
+            // Получение отображаемого имени пользователя
+            function getUserDisplayName(username) {
+                if (!username) return 'Неизвестно';
+                const fromDirectory = userDirectory[username];
+                if (fromDirectory && fromDirectory.full_name) {
+                    return fromDirectory.full_name;
+                }
+                return username.replace('@', '');
+            }
+
             // Получение инициалов пользователя
             function getInitials(username) {
-                if (!username) return '?';
-                // Убираем @ и берем первые 2 символа
-                const cleanName = username.replace('@', '');
-                return cleanName.substring(0, 2).toUpperCase();
+                const displayName = getUserDisplayName(username);
+                if (!displayName) return '?';
+
+                const nameParts = displayName.trim().split(/\s+/);
+                if (nameParts.length === 1) {
+                    return nameParts[0].substring(0, 2).toUpperCase();
+                }
+
+                return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
             }
 
             // Получение названия группы по ID
@@ -1441,6 +1681,18 @@
                 try {
                     const [day, month, year] = dateStr.split('.');
                     return new Date(year, month - 1, day);
+                } catch {
+                    return null;
+                }
+            }
+
+            function parseCreatedAt(dateTimeStr) {
+                if (!dateTimeStr) return null;
+                try {
+                    const [datePart, timePart = '00:00:00'] = dateTimeStr.split(' ');
+                    const [day, month, year] = datePart.split('.');
+                    const [hours, minutes, seconds] = timePart.split(':');
+                    return new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0);
                 } catch {
                     return null;
                 }
@@ -1836,6 +2088,16 @@
                 newSelectedUsers = [];
             }
 
+            function toggleGroupVisibility(groupId) {
+                if (expandedGroups.has(groupId)) {
+                    expandedGroups.delete(groupId);
+                } else {
+                    expandedGroups.add(groupId);
+                }
+
+                displayTaskGroups(taskGroups, currentFilter, currentUserFilter);
+            }
+
             // Вспомогательные функции
             function safeString(value) {
                 if (value === null || value === undefined) {
@@ -1980,6 +2242,83 @@
                     saveTaskGroupUsers(groupId, newSelectedUsers);
                 });
 
+                // Форма управления пользователями
+                document.getElementById('userManagementForm').addEventListener('submit', async function (e) {
+                    e.preventDefault();
+
+                    const usernameInput = document.getElementById('userLogin');
+                    const fullNameInput = document.getElementById('userFullName');
+                    const groupsInput = document.getElementById('userGroups');
+                    const statusMessage = document.getElementById('userStatusMessage');
+
+                    const username = usernameInput.value.trim();
+                    const fullName = fullNameInput.value.trim();
+                    const groups = groupsInput.value
+                        .split(',')
+                        .map(g => g.trim())
+                        .filter(Boolean);
+
+                    if (!username || !fullName) {
+                        statusMessage.textContent = '❌ Заполните логин и имя сотрудника';
+                        return;
+                    }
+
+                    const normalizedUsername = username.startsWith('@') ? username : `@${username}`;
+                    const payload = { username: normalizedUsername, full_name: fullName, groups };
+
+                    const isUpdate = Boolean(userDirectory[normalizedUsername]);
+                    const method = isUpdate ? 'PUT' : 'POST';
+                    const endpoint = isUpdate ? `${API_BASE}/users/${encodeURIComponent(normalizedUsername)}` : `${API_BASE}/users`;
+
+                    try {
+                        const response = await fetch(endpoint, {
+                            method,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                        statusMessage.textContent = '✅ Данные сохранены';
+                        usernameInput.value = '';
+                        fullNameInput.value = '';
+                        groupsInput.value = '';
+                        await loadUsers();
+                    } catch (error) {
+                        console.error('Ошибка сохранения пользователя', error);
+                        statusMessage.textContent = '❌ Не удалось сохранить пользователя';
+                    }
+                });
+
+                // Форма настроек оповещений
+                document.getElementById('notificationForm').addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    const statusMessage = document.getElementById('notificationStatus');
+
+                    const payload = {
+                        notifications: {
+                            task_created: document.getElementById('notifyCreated').checked,
+                            task_completed: document.getElementById('notifyCompleted').checked,
+                            task_deleted: document.getElementById('notifyDeleted').checked,
+                            overdue_reminder: document.getElementById('notifyOverdue').checked
+                        }
+                    };
+
+                    try {
+                        const response = await fetch(`${API_BASE}/config/notifications`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        statusMessage.textContent = '✅ Настройки оповещений обновлены';
+                    } catch (error) {
+                        console.error('Ошибка сохранения оповещений', error);
+                        statusMessage.textContent = '❌ Не удалось сохранить оповещения';
+                    }
+                });
+
                 // Фильтры статуса
                 document.querySelectorAll('.filter-btn').forEach(btn => {
                     btn.addEventListener('click', function () {
@@ -2001,6 +2340,20 @@
                     currentSort = this.value;
                     loadTasks(currentFilter, currentUserFilter, currentSort);
                 });
+
+                ['deadlineFrom', 'deadlineTo', 'createdFrom', 'createdTo'].forEach(id => {
+                    const element = document.getElementById(id);
+                    if (!element) return;
+
+                    element.addEventListener('change', function () {
+                        if (id === 'deadlineFrom') deadlineFromFilter = this.value;
+                        if (id === 'deadlineTo') deadlineToFilter = this.value;
+                        if (id === 'createdFrom') createdFromFilter = this.value;
+                        if (id === 'createdTo') createdToFilter = this.value;
+
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                    });
+                });
             }
 
             // Принудительное обновление данных
@@ -2018,6 +2371,7 @@
                         loadStats();
                         loadUsers();
                         loadGroups();
+                        loadConfig();
                         console.log('✅ Данные обновлены');
                         showNotification('✅ Данные обновлены!', 'success');
                     } else {
@@ -2044,6 +2398,11 @@
             window.closeEditModal = closeEditModal;
             window.closeDeadlineModal = closeDeadlineModal;
             window.closeManageUsersModal = closeManageUsersModal;
+            window.toggleGroupVisibility = toggleGroupVisibility;
+            window.saveTaskGroupUsers = saveTaskGroupUsers;
+            window.changeTaskGroupDeadline = changeTaskGroupDeadline;
+            window.completeGroupTask = completeGroupTask;
+            window.reactivateGroupTask = reactivateGroupTask;
         </script>
     </body>
 
