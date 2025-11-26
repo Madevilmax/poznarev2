@@ -217,13 +217,13 @@ class TaskManagerBot:
         """Возвращает клавиатуру админ-панели только для личных чатов"""
         if not self.is_private_chat(chat_type):
             return None
-            
+
         keyboard = [
             ["➕ Новая задача", "📋 Все задачи"],
             ["❌ Просроченные", "👥 Задачи по сотрудникам"],
+            ["🏘 Задачи по группам", "🛠 Управление задачами"],
             ["⚙️ Настройки уведомлений", "👤 Управление пользователями"],
-            ["👑 Управление администраторами", "🛠 Управление задачами"],
-            ["🏠 Главное меню"]
+            ["👑 Управление администраторами", "🏠 Главное меню"]
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -740,14 +740,17 @@ class TaskManagerBot:
             logging.error(f"Ошибка в show_users_keyboard: {e}")
             await self.safe_send_message(update.effective_chat.id, "❌ Ошибка при загрузке списка пользователей", context.bot)
 
-    def get_filtered_tasks(self, task_filter='all', date_filter='all'):
+    def get_filtered_tasks(self, task_filter='all', date_filter='all', group_id=None):
         """Возвращает отфильтрованные задачи"""
         try:
             tasks_data = self.get_tasks()
             all_tasks = tasks_data.get("tasks", [])
             filtered_tasks = []
-            
+
             for task in all_tasks:
+                if group_id is not None and str(task.get("group_id")) != str(group_id):
+                    continue
+
                 # Проверка статуса
                 if task_filter == 'active' and task.get('status') != 'active':
                     continue
@@ -818,23 +821,25 @@ class TaskManagerBot:
             except Exception:
                 return None
 
-    async def show_task_selection(self, update: Update, context: CallbackContext, action: str, title: str):
+    async def show_task_selection(self, update: Update, context: CallbackContext, action: str, title: str, group_id: Optional[str] = None):
         """Показывает выбор задачи с фильтрами"""
         try:
             user = update.effective_user
             chat = update.effective_chat
-            
+
             self.user_states[user.id] = {
                 "action": action,
                 "tasks": [],
                 "current_page": 0,
                 "task_filter": 'all',
                 "date_filter": 'all',
+                "group_filter": group_id,
+                "custom_title": title,
                 "created_at": datetime.now()
             }
-            
+
             await self.show_task_filters(update, context, title)
-            
+
         except Exception as e:
             logging.error(f"Ошибка в show_task_selection: {e}")
             await self.safe_send_message(update.effective_chat.id, "❌ Произошла ошибка при загрузке задач", context.bot)
@@ -914,7 +919,8 @@ class TaskManagerBot:
             
             current_task_filter = state.get('task_filter', 'all')
             current_date_filter = state.get('date_filter', 'all')
-            
+            title = state.get('custom_title', title)
+
             filter_text = f"🎛 {title}\n\n"
             filter_text += f"📊 Статус: {self.get_filter_display_name(current_task_filter)}\n"
             filter_text += f"📅 Период: {self.get_filter_display_name(current_date_filter)}\n\n"
@@ -952,15 +958,16 @@ class TaskManagerBot:
                 return
             
             state = self.user_states[user.id]
-            state["tasks"] = self.get_filtered_tasks(task_filter, date_filter)
+            group_filter = state.get("group_filter")
+            state["tasks"] = self.get_filtered_tasks(task_filter, date_filter, group_filter)
             state["task_filter"] = task_filter
             state["date_filter"] = date_filter
             state["current_page"] = 0
-            
+
             action = state.get("action", "")
-            title = self.get_action_title(action)
+            title = state.get("custom_title") or self.get_action_title(action)
             await self.show_task_page(update, context, 0, f"{title} - {self.get_filter_display_name(task_filter)}")
-            
+
         except Exception as e:
             logging.error(f"Ошибка в apply_task_filter: {e}")
 
@@ -972,7 +979,8 @@ class TaskManagerBot:
             "delete_task": "🗑 Удаление задач",
             "change_deadline": "⏰ Изменение сроков",
             "reassign_task": "👤 Переназначение задач",
-            "view_all_tasks": "📋 Все задачи системы"
+            "view_all_tasks": "📋 Все задачи системы",
+            "view_group_tasks": "🏠 Задачи группы"
         }
         return titles.get(action, "📋 Выберите задачу")
 
@@ -1114,6 +1122,8 @@ class TaskManagerBot:
                         await self.show_overdue_tasks(update, context)
                     elif text == "👥 Задачи по сотрудникам":
                         await self.show_tasks_by_users(update, context)
+                    elif text == "🏘 Задачи по группам":
+                        await self.show_group_tasks_overview(update, context)
                     elif text == "⚙️ Настройки уведомлений":
                         await self.show_notification_settings(update, context)
                     elif text == "👤 Управление пользователями":
@@ -1209,26 +1219,26 @@ class TaskManagerBot:
                 return
 
             # Обработка выбора задач с фильтрами
-            if current_action in ["edit_task", "complete_task", "delete_task", "change_deadline", "reassign_task", "view_all_tasks"]:
+            if current_action in ["edit_task", "complete_task", "delete_task", "change_deadline", "reassign_task", "view_all_tasks", "view_group_tasks"]:
                 if text == "🎛 Фильтры":
-                    title = self.get_action_title(current_action)
+                    title = state.get("custom_title") or self.get_action_title(current_action)
                     await self.show_task_filters(update, context, title)
                     return
                 elif text == "◀️ Предыдущая":
-                    title = self.get_action_title(current_action)
+                    title = state.get("custom_title") or self.get_action_title(current_action)
                     await self.show_task_page(update, context, state["current_page"] - 1, title)
                     return
                 elif text == "Следующая ▶️":
-                    title = self.get_action_title(current_action)
+                    title = state.get("custom_title") or self.get_action_title(current_action)
                     await self.show_task_page(update, context, state["current_page"] + 1, title)
                     return
                 elif text == "🔙 Назад к списку":
-                    title = self.get_action_title(current_action)
+                    title = state.get("custom_title") or self.get_action_title(current_action)
                     await self.show_task_page(update, context, 0, title)
                     return
                 elif text == "❌ Отмена":
                     del self.user_states[user.id]
-                    if current_action == "view_all_tasks":
+                    if current_action in ["view_all_tasks", "view_group_tasks"]:
                         await self.show_admin_panel(update, context)
                     else:
                         await self.show_task_management(update, context)
@@ -1282,6 +1292,8 @@ class TaskManagerBot:
                             elif current_action == "reassign_task":
                                 await self.start_reassign_task_for_task(update, context, task_id)
                             elif current_action == "view_all_tasks":
+                                await self.show_task_details(update, context, task_id)
+                            elif current_action == "view_group_tasks":
                                 await self.show_task_details(update, context, task_id)
                                 # Для view_all_tasks состояние не удаляем, чтобы можно было посмотреть другие задачи
                                 
@@ -2196,7 +2208,7 @@ class TaskManagerBot:
             elif callback_data.startswith('change_deadline:'):
                 task_id = int(callback_data.split(':')[1])
                 task = self.find_task_by_id(task_id)
-                
+
                 if not task:
                     await query.edit_message_text("❌ Задача не найдена!")
                     return
@@ -2205,9 +2217,16 @@ class TaskManagerBot:
                 if task.get("assigned_to") != username and not is_admin_user:
                     await query.edit_message_text("❌ Вы можете менять срок только своих задач!")
                     return
-                
+
                 await self.start_change_deadline_for_task(update, context, task_id)
-                    
+
+            elif callback_data.startswith('view_group_tasks:'):
+                group_id = callback_data.split(':')[1]
+                await self.start_group_task_view(update, context, group_id)
+
+            elif callback_data == "back_to_admin":
+                await self.show_admin_panel(update, context)
+
         except Exception as e:
             logging.error(f"Ошибка в handle_callback: {e}")
             try:
@@ -2294,6 +2313,63 @@ class TaskManagerBot:
         except Exception as e:
             logging.error(f"Ошибка в show_tasks_by_users: {e}")
             await self.safe_send_message(update.effective_chat.id, "❌ Произошла ошибка при загрузке задач по сотрудникам", context.bot)
+
+    async def show_group_tasks_overview(self, update: Update, context: CallbackContext):
+        """Показывает групповые задачи с суммарной статистикой и кнопками выбора"""
+        try:
+            user = update.effective_user
+            username = f"@{user.username}" if user.username else f"user_{user.id}"
+
+            if not self.is_admin(username):
+                await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
+                return
+
+            groups = self.get_all_groups()
+            tasks_data = self.get_tasks()
+
+            if not groups:
+                await self.safe_send_message(update.effective_chat.id, "❌ В системе нет групп", context.bot)
+                return
+
+            overview_text = "🏘 Групповые задачи\n\nВыберите группу, чтобы увидеть задачи и управлять ими:\n\n"
+            keyboard = []
+
+            for group_id, group_info in sorted(groups.items(), key=lambda x: x[1].get("title", "")):
+                group_tasks = [t for t in tasks_data.get("tasks", []) if str(t.get("group_id")) == str(group_id)]
+                active_count = len([t for t in group_tasks if t.get("status") == "active"])
+                completed_count = len([t for t in group_tasks if t.get("status") == "completed"])
+                overdue_count = len([t for t in group_tasks if t.get("status") == "active" and self.is_task_overdue(t.get("deadline", ""))])
+
+                title = group_info.get("title") or f"Группа {group_id}"
+                overview_text += f"🏠 {title}\n   🟡 Активные: {active_count} | 🟢 Выполнено: {completed_count} | 🔴 Просрочено: {overdue_count}\n\n"
+
+                button_text = f"{title} ({len(group_tasks)})"
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"view_group_tasks:{group_id}")])
+
+            keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_admin")])
+
+            await self.safe_send_message(
+                update.effective_chat.id,
+                overview_text,
+                context.bot,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except Exception as e:
+            logging.error(f"Ошибка в show_group_tasks_overview: {e}")
+            await self.safe_send_message(update.effective_chat.id, "❌ Произошла ошибка при загрузке групповых задач", context.bot)
+
+    async def start_group_task_view(self, update: Update, context: CallbackContext, group_id: str):
+        """Открывает список задач конкретной группы с фильтрами"""
+        try:
+            groups = self.get_all_groups()
+            group_title = groups.get(str(group_id), {}).get("title") or f"Группа {group_id}"
+
+            title = f"🏠 Задачи группы: {group_title}"
+            await self.show_task_selection(update, context, "view_group_tasks", title, group_id=str(group_id))
+            await self.apply_task_filter(update, context, 'all', 'all')
+        except Exception as e:
+            logging.error(f"Ошибка в start_group_task_view: {e}")
+            await self.safe_send_message(update.effective_chat.id, "❌ Не удалось открыть задачи группы", context.bot)
 
     def get_days_until_deadline(self, deadline_str):
         """Возвращает количество дней до дедлайна (отрицательное если просрочено)"""

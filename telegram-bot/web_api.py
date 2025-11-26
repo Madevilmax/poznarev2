@@ -98,6 +98,13 @@ def find_task_by_id(tasks_data, task_id):
             return task
     return None
 
+
+def normalize_username(username: str) -> str:
+    """Возвращает логин с ведущим @"""
+    if not username:
+        return ""
+    return username if username.startswith("@") else f"@{username}"
+
 # API Routes
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():
@@ -307,6 +314,100 @@ def get_users():
         logging.error(f"❌ Ошибка получения пользователей: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/users', methods=['POST'])
+def create_or_update_user():
+    """Создать нового пользователя"""
+    try:
+        payload = request.json or {}
+        username = normalize_username(payload.get('username', '').strip())
+        full_name = payload.get('full_name', '').strip()
+        groups = payload.get('groups', [])
+
+        if not username or not full_name:
+            return jsonify({"success": False, "error": "Укажите логин и имя"}), 400
+
+        users_data = data_manager.load_data_from_file(USERS_FILE, {"groups": {}, "all_users": {}})
+        now_str = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+
+        all_users = users_data.setdefault("all_users", {})
+        user_entry = all_users.get(username, {})
+        user_entry.update({
+            "full_name": full_name,
+            "last_seen": now_str,
+            "first_seen": user_entry.get("first_seen", now_str)
+        })
+
+        if groups:
+            existing_groups = set(user_entry.get("groups", []))
+            user_entry["groups"] = sorted(existing_groups.union(set(groups)))
+
+        all_users[username] = user_entry
+
+        # Добавляем пользователя в группы
+        users_groups = users_data.setdefault("groups", {})
+        for group_id in user_entry.get("groups", groups):
+            group_ref = users_groups.setdefault(group_id, {"title": f"Группа {group_id}", "users": {}, "created_at": now_str})
+            group_users = group_ref.setdefault("users", {})
+            group_users[username] = {
+                "full_name": full_name,
+                "last_seen": now_str,
+                "added_at": group_users.get(username, {}).get("added_at", now_str)
+            }
+
+        if data_manager.save_data_to_file(users_data, USERS_FILE):
+            logging.info(f"✅ Пользователь {username} сохранен")
+            return jsonify({"success": True, "user": user_entry})
+        return jsonify({"success": False, "error": "Ошибка сохранения"}), 500
+    except Exception as e:
+        logging.error(f"❌ Ошибка сохранения пользователя: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/users/<username>', methods=['PUT'])
+def update_user(username):
+    """Обновление информации о пользователе"""
+    try:
+        payload = request.json or {}
+        normalized_username = normalize_username(username)
+        full_name = payload.get('full_name', '').strip()
+        groups = payload.get('groups', [])
+
+        users_data = data_manager.load_data_from_file(USERS_FILE, {"groups": {}, "all_users": {}})
+        all_users = users_data.setdefault("all_users", {})
+
+        if normalized_username not in all_users:
+            return jsonify({"success": False, "error": "Пользователь не найден"}), 404
+
+        now_str = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        user_entry = all_users[normalized_username]
+
+        if full_name:
+            user_entry["full_name"] = full_name
+        user_entry["last_seen"] = now_str
+
+        if groups:
+            user_entry["groups"] = sorted(set(groups))
+
+        # Синхронизируем данные групп
+        users_groups = users_data.setdefault("groups", {})
+        for group_id in user_entry.get("groups", []):
+            group_ref = users_groups.setdefault(group_id, {"title": f"Группа {group_id}", "users": {}, "created_at": now_str})
+            group_users = group_ref.setdefault("users", {})
+            group_users[normalized_username] = {
+                "full_name": user_entry.get("full_name", normalized_username),
+                "last_seen": now_str,
+                "added_at": group_users.get(normalized_username, {}).get("added_at", now_str)
+            }
+
+        if data_manager.save_data_to_file(users_data, USERS_FILE):
+            logging.info(f"✅ Пользователь {normalized_username} обновлен")
+            return jsonify({"success": True, "user": user_entry})
+        return jsonify({"success": False, "error": "Ошибка сохранения"}), 500
+    except Exception as e:
+        logging.error(f"❌ Ошибка обновления пользователя: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     """Получить статистику"""
@@ -351,6 +452,40 @@ def get_config():
     except Exception as e:
         logging.error(f"❌ Ошибка получения конфигурации: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/config/notifications', methods=['PUT'])
+def update_notifications():
+    """Обновление настроек уведомлений"""
+    try:
+        payload = request.json or {}
+        new_notifications = payload.get("notifications", {})
+
+        config_data = data_manager.load_data_from_file(CONFIG_FILE, {
+            "group_chat_ids": [],
+            "admins": [],
+            "notifications": {
+                "task_created": True,
+                "task_completed": True,
+                "task_deleted": True,
+                "overdue_reminder": True
+            }
+        })
+
+        config_data["notifications"].update({
+            "task_created": bool(new_notifications.get("task_created", config_data["notifications"].get("task_created", True))),
+            "task_completed": bool(new_notifications.get("task_completed", config_data["notifications"].get("task_completed", True))),
+            "task_deleted": bool(new_notifications.get("task_deleted", config_data["notifications"].get("task_deleted", True))),
+            "overdue_reminder": bool(new_notifications.get("overdue_reminder", config_data["notifications"].get("overdue_reminder", True))),
+        })
+
+        if data_manager.save_data_to_file(config_data, CONFIG_FILE):
+            logging.info("✅ Настройки уведомлений обновлены")
+            return jsonify({"success": True, "notifications": config_data["notifications"]})
+        return jsonify({"success": False, "error": "Ошибка сохранения"}), 500
+    except Exception as e:
+        logging.error(f"❌ Ошибка сохранения настроек уведомлений: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/refresh', methods=['POST'])
 def refresh_data():
