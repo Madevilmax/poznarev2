@@ -134,6 +134,16 @@ class TaskManagerBot:
         cleaned = cleaned if cleaned.startswith("@") else f"@{cleaned}"
         return cleaned
 
+    def get_normalized_username(self, update: Update) -> str:
+        """Возвращает нормализованный username пользователя из апдейта"""
+        try:
+            user = update.effective_user
+            raw_username = f"@{user.username}" if user and user.username else f"user_{user.id if user else 'unknown'}"
+            return self.normalize_username(raw_username)
+        except Exception as e:
+            logging.error(f"Ошибка получения username из апдейта: {e}")
+            return ""
+
     def resolve_username_key(self, users_data: Dict, username: str) -> str:
         """Возвращает существующий ключ пользователя с учетом регистра, чтобы избежать дублей"""
         normalized = self.normalize_username(username)
@@ -385,7 +395,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             await self.add_user_to_group(chat.id, username, user.full_name, chat.title if hasattr(chat, 'title') else "Личный чат")
             
@@ -625,7 +635,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
 
             self.user_states[user.id] = {
                 "action": "personal_task",
@@ -749,7 +759,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             tasks_data = self.get_tasks()
             # Фильтруем только задачи текущего пользователя
@@ -781,7 +791,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             tasks_data = self.get_tasks()
             # Фильтруем только задачи текущего пользователя
@@ -872,7 +882,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             all_users = self.get_all_users()
             
@@ -1290,7 +1300,7 @@ class TaskManagerBot:
             user = update.effective_user
             chat = update.effective_chat
             text = update.message.text
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             logging.info(f"Обработка сообщения от {user.id}: '{text}', состояние: {self.user_states.get(user.id)}")
             
@@ -2102,7 +2112,7 @@ class TaskManagerBot:
     async def complete_task_direct(self, update: Update, context: CallbackContext, task_id: int):
         """Непосредственно завершает задачу"""
         user = update.effective_user
-        username = f"@{user.username}" if user.username else f"user_{user.id}"
+        username = self.get_normalized_username(update)
         
         success = await self.complete_task_safe(task_id, username, context.bot)
         
@@ -2332,7 +2342,7 @@ class TaskManagerBot:
         """Показывает меню управления задачами"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2534,7 +2544,7 @@ class TaskManagerBot:
             
             callback_data = query.data
             user = query.from_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             is_admin_user = self.is_admin(username)
             
             if callback_data.startswith('complete:'):
@@ -2732,7 +2742,7 @@ class TaskManagerBot:
         """Показывает групповые задачи с суммарной статистикой и кнопками выбора"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
 
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2799,7 +2809,7 @@ class TaskManagerBot:
     async def show_admin_panel(self, update: Update, context: CallbackContext):
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2862,7 +2872,7 @@ class TaskManagerBot:
         """Показывает настройки уведомлений"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2941,7 +2951,7 @@ class TaskManagerBot:
         """Показывает управление пользователями"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2962,7 +2972,7 @@ class TaskManagerBot:
         """Начинает процесс ручного добавления пользователя"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2995,7 +3005,7 @@ class TaskManagerBot:
         """Начинает процесс удаления пользователя"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -3034,7 +3044,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -3077,7 +3087,7 @@ class TaskManagerBot:
     async def show_main_menu(self, update: Update, context: CallbackContext):
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             await self.safe_send_message(
                 update.effective_chat.id,
@@ -3118,7 +3128,7 @@ class TaskManagerBot:
         """Показывает управление администраторами"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -3150,7 +3160,7 @@ class TaskManagerBot:
         """Начинает процесс добавления администратора"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -3181,7 +3191,7 @@ class TaskManagerBot:
         """Начинает процесс удаления администратора"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
