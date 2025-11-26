@@ -2541,13 +2541,29 @@ class TaskManagerBot:
         try:
             query = update.callback_query
             await query.answer()
-            
+
             callback_data = query.data
             user = query.from_user
             username = self.get_normalized_username(update)
             is_admin_user = self.is_admin(username)
-            
-            if callback_data.startswith('complete:'):
+
+            if callback_data.startswith('toggle_notification:'):
+                if not is_admin_user:
+                    await query.edit_message_text("❌ У вас нет прав для изменения настроек уведомлений")
+                    return
+
+                toggle_key = callback_data.split(':')[1]
+                config_data = self.get_config()
+                notifications = config_data.setdefault("notifications", {})
+
+                notifications[toggle_key] = not notifications.get(toggle_key, True)
+
+                if self.save_config(config_data):
+                    await self.show_notification_settings(update, context, edit=True)
+                else:
+                    await query.edit_message_text("❌ Не удалось сохранить настройки уведомлений")
+
+            elif callback_data.startswith('complete:'):
                 task_id = int(callback_data.split(':')[1])
                 task = self.find_task_by_id(task_id)
                 
