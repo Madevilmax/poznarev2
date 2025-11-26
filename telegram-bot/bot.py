@@ -134,6 +134,16 @@ class TaskManagerBot:
         cleaned = cleaned if cleaned.startswith("@") else f"@{cleaned}"
         return cleaned
 
+    def get_normalized_username(self, update: Update) -> str:
+        """Возвращает нормализованный username пользователя из апдейта"""
+        try:
+            user = update.effective_user
+            raw_username = f"@{user.username}" if user and user.username else f"user_{user.id if user else 'unknown'}"
+            return self.normalize_username(raw_username)
+        except Exception as e:
+            logging.error(f"Ошибка получения username из апдейта: {e}")
+            return ""
+
     def resolve_username_key(self, users_data: Dict, username: str) -> str:
         """Возвращает существующий ключ пользователя с учетом регистра, чтобы избежать дублей"""
         normalized = self.normalize_username(username)
@@ -279,11 +289,10 @@ class TaskManagerBot:
         """Клавиатура для управления задачами только для личных чатов"""
         if not self.is_private_chat(chat_type):
             return None
-            
+
         keyboard = [
-            ["✏️ Изменить задачу", "✅ Завершить задачу"],
-            ["🗑 Удалить задачу", "⏰ Изменить срок"],
-            ["👤 Переназначить задачу", "🔙 Назад в админку"]
+            ["👥 Групповое редактирование", "✅ Завершить задачу"],
+            ["🗑 Удалить задачу", "🔙 Назад в админку"]
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -386,7 +395,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             await self.add_user_to_group(chat.id, username, user.full_name, chat.title if hasattr(chat, 'title') else "Личный чат")
             
@@ -626,7 +635,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
 
             self.user_states[user.id] = {
                 "action": "personal_task",
@@ -750,7 +759,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             tasks_data = self.get_tasks()
             # Фильтруем только задачи текущего пользователя
@@ -782,7 +791,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             tasks_data = self.get_tasks()
             # Фильтруем только задачи текущего пользователя
@@ -873,7 +882,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             all_users = self.get_all_users()
             
@@ -1094,7 +1103,7 @@ class TaskManagerBot:
                 "date_filter": 'all',
                 "group_filter": group_id,
                 "custom_title": title,
-                "group_view": action in ["edit_task", "change_deadline", "view_all_tasks", "view_group_tasks"],
+                "group_view": action in ["group_edit", "view_all_tasks", "view_group_tasks"],
                 "created_at": datetime.now()
             }
 
@@ -1257,19 +1266,17 @@ class TaskManagerBot:
     def get_action_title(self, action: str) -> str:
         """Возвращает заголовок для действия"""
         titles = {
-            "edit_task": "✏️ Редактирование задач",
-            "complete_task": "✅ Завершение задач", 
+            "group_edit": "👥 Групповое редактирование",
+            "complete_task": "✅ Завершение задач",
             "delete_task": "🗑 Удаление задач",
-            "change_deadline": "⏰ Изменение сроков",
-            "reassign_task": "👤 Переназначение задач",
             "view_all_tasks": "📋 Все задачи системы",
             "view_group_tasks": "🏠 Задачи группы"
         }
         return titles.get(action, "📋 Выберите задачу")
 
-    async def start_edit_task(self, update: Update, context: CallbackContext):
-        """Начинает процесс изменения задачи с выбора из списка"""
-        await self.show_task_selection(update, context, "edit_task", "✏️ Выберите задачу для редактирования")
+    async def start_group_editing(self, update: Update, context: CallbackContext):
+        """Запускает групповое редактирование задач"""
+        await self.show_task_selection(update, context, "group_edit", "👥 Выберите группу задач для редактирования")
 
     async def start_complete_task(self, update: Update, context: CallbackContext):
         """Начинает процесс завершения задачи с выбора из списка"""
@@ -1283,10 +1290,6 @@ class TaskManagerBot:
         """Начинает процесс изменения срока задачи с выбора из списка"""
         await self.show_task_selection(update, context, "change_deadline", "⏰ Выберите задачу для изменения срока")
 
-    async def start_reassign_task(self, update: Update, context: CallbackContext):
-        """Начинает процесс переназначения задачи с выбора из списка"""
-        await self.show_task_selection(update, context, "reassign_task", "👤 Выберите задачу для переназначения")
-
     async def show_all_tasks_with_filters(self, update: Update, context: CallbackContext):
         """Показывает все задачи с фильтрами"""
         await self.show_task_selection(update, context, "view_all_tasks", "📋 Все задачи системы")
@@ -1297,7 +1300,7 @@ class TaskManagerBot:
             user = update.effective_user
             chat = update.effective_chat
             text = update.message.text
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             logging.info(f"Обработка сообщения от {user.id}: '{text}', состояние: {self.user_states.get(user.id)}")
             
@@ -1397,16 +1400,12 @@ class TaskManagerBot:
                         await self.show_task_management(update, context)
                     elif text == "👑 Управление администраторами":
                         await self.show_admin_management(update, context)
-                    elif text == "✏️ Изменить задачу":
-                        await self.start_edit_task(update, context)
+                    elif text == "👥 Групповое редактирование":
+                        await self.start_group_editing(update, context)
                     elif text == "✅ Завершить задачу":
                         await self.start_complete_task(update, context)
                     elif text == "🗑 Удалить задачу":
                         await self.start_delete_task(update, context)
-                    elif text == "⏰ Изменить срок":
-                        await self.start_change_deadline(update, context)
-                    elif text == "👤 Переназначить задачу":
-                        await self.start_reassign_task(update, context)
                     elif text == "🔙 Назад в админку":
                         await self.show_admin_panel(update, context)
                     elif text == "➕ Добавить пользователя":
@@ -1439,13 +1438,16 @@ class TaskManagerBot:
                     if not text.startswith('@'):
                         await self.safe_send_message(chat.id, "❌ Username должен начинаться с @. Попробуйте еще раз:", context.bot)
                         return
-                    
-                    new_admin = text
+                    new_admin = self.normalize_username(text)
+                    normalized_new_admin = new_admin.lower()
+
                     config_data = self.get_config()
                     if "admins" not in config_data:
                         config_data["admins"] = []
-                    
-                    if new_admin in config_data["admins"]:
+
+                    normalized_existing = [self.normalize_username(a).lower() for a in config_data.get("admins", [])]
+
+                    if normalized_new_admin in normalized_existing:
                         await self.safe_send_message(chat.id, f"✅ {new_admin} уже администратор", context.bot)
                     else:
                         config_data["admins"].append(new_admin)
@@ -1483,12 +1485,34 @@ class TaskManagerBot:
                 await self.show_admin_management(update, context)
                 return
 
+            if current_action == "group_edit_choice":
+                if text == "❌ Отмена":
+                    del self.user_states[user.id]
+                    await self.show_task_management(update, context)
+                    return
+
+                task_id = state.get("task_id")
+                task_ids = state.get("group_task_ids") or []
+                assigned_users = state.get("assigned_users") or []
+
+                if text == "📝 Изменить описание группы":
+                    await self.start_edit_task_description(update, context, task_id, task_ids, assigned_users)
+                elif text == "⏰ Изменить срок группы":
+                    await self.start_change_deadline_for_task(update, context, task_id, task_ids, assigned_users)
+                elif text == "👥 Управление исполнителями":
+                    await self.start_manage_group_assignees(update, context, task_id, task_ids)
+                else:
+                    await self.safe_send_message(chat.id, "❌ Выберите одно из доступных действий", context.bot)
+                    return
+
+                return
+
             if current_action == "personal_task":
                 await self.handle_personal_task_creation(update, context, text, state)
                 return
 
             # Обработка выбора задач с фильтрами
-            if current_action in ["edit_task", "complete_task", "delete_task", "change_deadline", "reassign_task", "view_all_tasks", "view_group_tasks"]:
+            if current_action in ["group_edit", "complete_task", "delete_task", "view_all_tasks", "view_group_tasks"]:
                 if text == "🎛 Фильтры":
                     title = state.get("custom_title") or self.get_action_title(current_action)
                     await self.show_task_filters(update, context, title)
@@ -1550,18 +1574,14 @@ class TaskManagerBot:
                             group_task_ids = selected_task.get("task_ids") if state.get("group_view") else [task_id]
                             assigned_users = selected_task.get("assigned_users") if state.get("group_view") else [selected_task.get("assigned_to")]
 
-                            if current_action == "edit_task":
-                                await self.start_edit_task_description(update, context, task_id, group_task_ids, assigned_users)
+                            if current_action == "group_edit":
+                                await self.start_group_edit_choice(update, context, task_id, group_task_ids, assigned_users)
                             elif current_action == "complete_task":
                                 await self.complete_task_direct(update, context, task_id)
                                 del self.user_states[user.id]  # Удаляем состояние только после завершения
                             elif current_action == "delete_task":
                                 await self.delete_task_direct(update, context, task_id)
                                 del self.user_states[user.id]  # Удаляем состояние только после завершения
-                            elif current_action == "change_deadline":
-                                await self.start_change_deadline_for_task(update, context, task_id, group_task_ids, assigned_users)
-                            elif current_action == "reassign_task":
-                                await self.start_reassign_task_for_task(update, context, task_id)
                             elif current_action == "view_all_tasks":
                                 await self.show_task_details(update, context, task_id)
                             elif current_action == "view_group_tasks":
@@ -1831,90 +1851,122 @@ class TaskManagerBot:
                 del self.user_states[user.id]
                 await self.show_users_management(update, context)
             
-            # Обработка переназначения задачи
-            elif state.get("action") == "reassign_task_for_task":
+            elif state.get("action") == "manage_group_assignees":
                 if text == "❌ Отмена":
                     del self.user_states[user.id]
                     await self.show_task_management(update, context)
                     return
                 elif text == "✅ Завершить выбор":
-                    if not state.get("selected_users"):
+                    selected_users = state.get("selected_users", [])
+                    if not selected_users:
                         await self.safe_send_message(chat.id, "❌ Вы не выбрали ни одного сотрудника. Выберите хотя бы одного:", context.bot)
                         await self.show_users_keyboard(update, context, state.get("available_users", []), multi_select=True)
-                    else:
-                        task_id = state.get("task_id")
-                        selected_users = state.get("selected_users", [])
-                        username = state.get("username")
-                        
-                        task = self.find_task_by_id(task_id)
-                        if task:
-                            tasks_data = self.get_tasks()
-                            old_user = task.get("assigned_to", "")
-                            
-                            # Удаляем оригинальную задачу
-                            tasks_data["tasks"] = [t for t in tasks_data.get("tasks", []) if t.get("id") != task_id]
-                            
-                            created_count = 0
-                            for new_user in selected_users:
-                                new_task_id = self.get_next_task_id()
-                                new_task = task.copy()
-                                new_task["id"] = new_task_id
-                                new_task["assigned_to"] = new_user
-                                new_task["assigned_by"] = username
-                                new_task["created_at"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-                                new_task["status"] = "active"
-                                new_task["completed_at"] = ""
-                                
-                                tasks_data["tasks"].append(new_task)
-                                created_count += 1
-                            
-                            if self.save_tasks(tasks_data):
-                                await self.safe_send_message(
-                                    chat.id,
-                                    f"✅ Задача #{task_id} переназначена на {created_count} пользователей!",
-                                    context.bot
-                                )
-                                
-                                config_data = self.get_config()
-                                if config_data.get("notifications", {}).get("task_created", True):
-                                    assigned_users = ", ".join([self.get_user_display_name(user) for user in selected_users])
-                                    await self.safe_send_message(
-                                        task.get("group_id"),
-                                        f"👤 Задача переназначена!\n\n🆔 #{task_id} (и копии)\n📝 {task.get('task_text', '')}\n⏰ Срок: {task.get('deadline', '')}\n👤 Новые исполнители: {assigned_users}",
-                                        context.bot
-                                    )
-                            else:
-                                await self.safe_send_message(chat.id, "❌ Ошибка сохранения изменений", context.bot)
-                        
-                        del self.user_states[user.id]
-                        await self.show_task_management(update, context)
+                        return
+
+                    await self.update_group_assignees(update, context, state, selected_users)
+                    return
                 else:
                     selected_username = None
                     for i, display_user in enumerate(state.get("available_users", [])):
                         if text == display_user:
                             selected_username = state["available_usernames"][i]
                             break
-                    
+
                     if selected_username:
                         if "selected_users" not in state:
                             state["selected_users"] = []
-                        
+
                         if selected_username in state["selected_users"]:
                             state["selected_users"].remove(selected_username)
                             await self.safe_send_message(chat.id, f"❌ {selected_username} удален из выбора", context.bot)
                         else:
                             state["selected_users"].append(selected_username)
                             await self.safe_send_message(chat.id, f"✅ {selected_username} добавлен в выбор", context.bot)
-                        
-                        # Обновляем клавиатуру с текущим состоянием выбора
+
                         await self.show_users_keyboard(update, context, state.get("available_users", []), multi_select=True)
                     else:
                         await self.safe_send_message(chat.id, "❌ Пользователь не найден. Выберите из списка:", context.bot)
                         await self.show_users_keyboard(update, context, state.get("available_users", []), multi_select=True)
-            
+
         except Exception as e:
             logging.error(f"Ошибка в handle_message: {e}")
             await self.safe_send_message(update.effective_chat.id, "❌ Произошла ошибка при обработке сообщения", context.bot)
+
+    async def start_group_edit_choice(self, update: Update, context: CallbackContext, task_id: int, task_ids: Optional[List[int]], assigned_users: Optional[List[str]]):
+        """Показывает меню действий для группового редактирования"""
+        try:
+            task = self.find_task_by_id(task_id)
+            if not task:
+                await self.safe_send_message(update.effective_chat.id, "❌ Задача не найдена", context.bot)
+                await self.show_task_management(update, context)
+                return
+
+            user_id = update.effective_user.id
+            self.user_states[user_id] = {
+                "action": "group_edit_choice",
+                "task_id": task_id,
+                "group_task_ids": task_ids or [task_id],
+                "assigned_users": assigned_users or [],
+                "created_at": datetime.now()
+            }
+
+            options_keyboard = [
+                ["📝 Изменить описание группы", "⏰ Изменить срок группы"],
+                ["👥 Управление исполнителями", "❌ Отмена"]
+            ]
+
+            await self.safe_send_message(
+                update.effective_chat.id,
+                "👥 Групповое редактирование\n\nВыберите действие для всей группы одинаковых задач:",
+                context.bot,
+                reply_markup=ReplyKeyboardMarkup(options_keyboard, resize_keyboard=True) if self.is_private_chat(update.effective_chat.type) else None
+            )
+        except Exception as e:
+            logging.error(f"Ошибка в start_group_edit_choice: {e}")
+            await self.safe_send_message(update.effective_chat.id, "❌ Произошла ошибка при подготовке редактирования", context.bot)
+
+    async def start_manage_group_assignees(self, update: Update, context: CallbackContext, task_id: int, task_ids: Optional[List[int]] = None):
+        """Запускает массовое управление исполнителями для группы задач"""
+        try:
+            base_task = self.find_task_by_id(task_id)
+            if not base_task:
+                await self.safe_send_message(update.effective_chat.id, "❌ Задача не найдена", context.bot)
+                await self.show_task_management(update, context)
+                return
+
+            users_data = self.get_users()
+            all_users = list(users_data.get("all_users", {}).keys())
+            display_users = [self.get_user_display_name(username) for username in all_users]
+
+            user_id = update.effective_user.id
+            related_ids = task_ids or [task_id]
+            current_assignees = []
+            for tid in related_ids:
+                task_info = self.find_task_by_id(tid)
+                if task_info and task_info.get("assigned_to"):
+                    current_assignees.append(task_info.get("assigned_to"))
+
+            if user_id in self.user_states:
+                del self.user_states[user_id]
+
+            self.user_states[user_id] = {
+                "action": "manage_group_assignees",
+                "task_id": task_id,
+                "group_task_ids": related_ids,
+                "available_users": display_users,
+                "available_usernames": all_users,
+                "selected_users": current_assignees,
+                "username": f"@{update.effective_user.username}" if update.effective_user.username else f"user_{update.effective_user.id}",
+                "created_at": datetime.now()
+            }
+
+            if all_users:
+                await self.show_users_keyboard(update, context, display_users, multi_select=True)
+            else:
+                await self.safe_send_message(update.effective_chat.id, "❌ В системе нет пользователей для переназначения", context.bot)
+        except Exception as e:
+            logging.error(f"Ошибка в start_manage_group_assignees: {e}")
+            await self.safe_send_message(update.effective_chat.id, "❌ Произошла ошибка при подготовке управления исполнителями", context.bot)
 
     async def start_edit_task_description(self, update: Update, context: CallbackContext, task_id: int, task_ids: Optional[List[int]] = None, assigned_users: Optional[List[str]] = None):
         """Начинает процесс изменения описания задачи (с учетом групповых задач)"""
@@ -1962,7 +2014,7 @@ class TaskManagerBot:
             
             await self.safe_send_message(
                 update.effective_chat.id,
-                f"✏️ Редактирование задачи #{task_id}\n\nТекущее описание: {task.get('task_text', '')}\n\nВведите новое описание:",
+                f"👥 Групповое редактирование #{task_id}\n\nТекущее описание: {task.get('task_text', '')}\n\nВведите новое описание для всей группы:",
                 context.bot,
                 reply_markup=ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True) if self.is_private_chat(update.effective_chat.type) else None
             )
@@ -2019,7 +2071,7 @@ class TaskManagerBot:
             
             await self.safe_send_message(
                 update.effective_chat.id,
-                f"⏰ Изменение срока для задачи #{task_id}\n\nТекущий срок: {task.get('deadline', '')}\n\nВыберите новый срок:",
+                f"⏰ Изменение срока для группы задач #{task_id}\n\nТекущий срок: {task.get('deadline', '')}\n\nВыберите новый срок для всей группы:",
                 context.bot,
                 reply_markup=ReplyKeyboardMarkup(deadline_keyboard, resize_keyboard=True) if self.is_private_chat(update.effective_chat.type) else None
             )
@@ -2060,7 +2112,7 @@ class TaskManagerBot:
     async def complete_task_direct(self, update: Update, context: CallbackContext, task_id: int):
         """Непосредственно завершает задачу"""
         user = update.effective_user
-        username = f"@{user.username}" if user.username else f"user_{user.id}"
+        username = self.get_normalized_username(update)
         
         success = await self.complete_task_safe(task_id, username, context.bot)
         
@@ -2129,8 +2181,66 @@ class TaskManagerBot:
                     )
             else:
                 await self.safe_send_message(update.effective_chat.id, "❌ Ошибка сохранения изменений", context.bot)
-        
+
         await self.show_my_tasks_menu(update, context)
+
+    async def update_group_assignees(self, update: Update, context: CallbackContext, state: dict, new_assignees: List[str]):
+        """Массово обновляет исполнителей для группы одинаковых задач"""
+        try:
+            task_id = state.get("task_id")
+            base_task = self.find_task_by_id(task_id)
+            if not base_task:
+                await self.safe_send_message(update.effective_chat.id, "❌ Базовая задача не найдена", context.bot)
+                del self.user_states[update.effective_user.id]
+                await self.show_task_management(update, context)
+                return
+
+            tasks_data = self.get_tasks()
+            target_signature = self.build_group_signature(base_task)
+
+            # Удаляем все задачи с той же сигнатурой
+            remaining_tasks = [t for t in tasks_data.get("tasks", []) if self.build_group_signature(t) != target_signature]
+            tasks_data["tasks"] = remaining_tasks
+
+            new_ids = self.get_next_task_id_batch(tasks_data, len(new_assignees))
+            group_task_id = base_task.get("group_task_id") or (new_ids[0] if new_ids else task_id)
+
+            for idx, assignee in enumerate(new_assignees):
+                new_task = base_task.copy()
+                new_task["id"] = new_ids[idx] if idx < len(new_ids) else self.get_next_task_id()
+                new_task["assigned_to"] = assignee
+                new_task["assigned_by"] = state.get("username") or base_task.get("assigned_by")
+                new_task["created_at"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                new_task["completed_at"] = ""
+                new_task["status"] = "active"
+                new_task["group_task_id"] = group_task_id
+                tasks_data["tasks"].append(new_task)
+
+            if not self.save_tasks(tasks_data):
+                await self.safe_send_message(update.effective_chat.id, "❌ Ошибка сохранения изменений", context.bot)
+                del self.user_states[update.effective_user.id]
+                await self.show_task_management(update, context)
+                return
+
+            assignees_display = ", ".join(self.get_user_display_name(u) for u in new_assignees)
+            await self.safe_send_message(update.effective_chat.id, f"✅ Исполнители группы обновлены: {assignees_display}", context.bot)
+
+            config_data = self.get_config()
+            if base_task.get("group_id") and config_data.get("notifications", {}).get("task_created", True):
+                await self.safe_send_message(
+                    base_task.get("group_id"),
+                    f"👥 Исполнители задач обновлены!\n\n📝 {base_task.get('task_text', '')}\n⏰ Срок: {base_task.get('deadline', '')}\n👤 Новые исполнители: {assignees_display}",
+                    context.bot
+                )
+
+            del self.user_states[update.effective_user.id]
+            await self.show_task_management(update, context)
+        except Exception as e:
+            logging.error(f"Ошибка в update_group_assignees: {e}")
+            await self.safe_send_message(update.effective_chat.id, "❌ Произошла ошибка при обновлении исполнителей", context.bot)
+            if update.effective_user.id in self.user_states:
+                del self.user_states[update.effective_user.id]
+            await self.show_task_management(update, context)
 
     async def change_deadline_direct(self, update: Update, context: CallbackContext, task_id: int, new_deadline: str, task_ids: Optional[List[int]] = None, assigned_users: Optional[List[str]] = None):
         """Непосредственно изменяет срок задачи"""
@@ -2205,49 +2315,6 @@ class TaskManagerBot:
         finally:
             await self.show_task_management(update, context)
 
-    async def start_reassign_task_for_task(self, update: Update, context: CallbackContext, task_id: int):
-        """Начинает процесс переназначения для конкретной задачи с множественным выбором"""
-        try:
-            task = self.find_task_by_id(task_id)
-            if not task:
-                await self.safe_send_message(update.effective_chat.id, "❌ Задача не найдена", context.bot)
-                await self.show_task_management(update, context)
-                return
-
-            users_data = self.get_users()
-            all_users = list(users_data.get("all_users", {}).keys())
-            display_users = []
-            for username in all_users:
-                display_text = self.get_user_display_name(username)
-                display_users.append(display_text)
-            
-            # Очищаем предыдущие состояния
-            user_id = update.effective_user.id
-            if user_id in self.user_states:
-                del self.user_states[user_id]
-
-            self.user_states[user_id] = {
-                "action": "reassign_task_for_task",
-                "task_id": task_id,
-                "available_users": display_users,
-                "available_usernames": all_users,
-                "selected_users": [],
-                "username": f"@{update.effective_user.username}" if update.effective_user.username else f"user_{update.effective_user.id}",
-                "created_at": datetime.now()
-            }
-            
-            if all_users:
-                await self.show_users_keyboard(update, context, display_users, multi_select=True)
-            else:
-                await self.safe_send_message(
-                    update.effective_chat.id,
-                    "❌ В системе нет пользователей для переназначения",
-                    context.bot
-                )
-        except Exception as e:
-            logging.error(f"Ошибка в start_reassign_task_for_task: {e}")
-            await self.safe_send_message(update.effective_chat.id, "❌ Произошла ошибка", context.bot)
-
     async def show_task_details(self, update: Update, context: CallbackContext, task_id: int):
         """Показывает детали задачи"""
         task = self.find_task_by_id(task_id)
@@ -2275,7 +2342,7 @@ class TaskManagerBot:
         """Показывает меню управления задачами"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2477,7 +2544,7 @@ class TaskManagerBot:
             
             callback_data = query.data
             user = query.from_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             is_admin_user = self.is_admin(username)
             
             if callback_data.startswith('complete:'):
@@ -2589,11 +2656,14 @@ class TaskManagerBot:
                 pass
 
     def is_admin(self, username):
-        """Проверка прав администратора"""
+        """Проверка прав администратора с учётом регистра и пробелов"""
+        normalized_username = self.normalize_username(username).lower()
+
         config_data = self.get_config()
-        hardcoded_admins = ["@admin", "@poznarev"]
-        config_admins = config_data.get("admins", [])
-        return username in hardcoded_admins + config_admins
+        hardcoded_admins = [self.normalize_username(x).lower() for x in ["@admin", "@poznarev"]]
+        config_admins = [self.normalize_username(x).lower() for x in config_data.get("admins", [])]
+
+        return normalized_username in hardcoded_admins + config_admins
 
     async def show_all_users(self, update: Update, context: CallbackContext):
         try:
@@ -2672,7 +2742,7 @@ class TaskManagerBot:
         """Показывает групповые задачи с суммарной статистикой и кнопками выбора"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
 
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2739,7 +2809,7 @@ class TaskManagerBot:
     async def show_admin_panel(self, update: Update, context: CallbackContext):
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2802,7 +2872,7 @@ class TaskManagerBot:
         """Показывает настройки уведомлений"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2881,7 +2951,7 @@ class TaskManagerBot:
         """Показывает управление пользователями"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2902,7 +2972,7 @@ class TaskManagerBot:
         """Начинает процесс ручного добавления пользователя"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2935,7 +3005,7 @@ class TaskManagerBot:
         """Начинает процесс удаления пользователя"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -2974,7 +3044,7 @@ class TaskManagerBot:
         try:
             user = update.effective_user
             chat = update.effective_chat
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -3017,7 +3087,7 @@ class TaskManagerBot:
     async def show_main_menu(self, update: Update, context: CallbackContext):
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             await self.safe_send_message(
                 update.effective_chat.id,
@@ -3058,7 +3128,7 @@ class TaskManagerBot:
         """Показывает управление администраторами"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -3090,7 +3160,7 @@ class TaskManagerBot:
         """Начинает процесс добавления администратора"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
@@ -3121,7 +3191,7 @@ class TaskManagerBot:
         """Начинает процесс удаления администратора"""
         try:
             user = update.effective_user
-            username = f"@{user.username}" if user.username else f"user_{user.id}"
+            username = self.get_normalized_username(update)
             
             if not self.is_admin(username):
                 await self.safe_send_message(update.effective_chat.id, "❌ У вас нет прав администратора", context.bot)
