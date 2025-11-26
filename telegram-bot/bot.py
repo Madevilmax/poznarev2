@@ -1695,9 +1695,9 @@ class TaskManagerBot:
                 task_ids = state.get("group_task_ids") or []
                 if not task_ids and state.get("task_id"):
                     base_task = self.find_task_by_id(state.get("task_id"))
-                    if base_task:
+                    if base_task and base_task.get("group_task_id"):
                         task_ids = [t.get("id") for t in self.get_tasks().get("tasks", [])
-                                    if self.tasks_match_group(base_task, t)]
+                                    if t.get("group_task_id") == base_task.get("group_task_id")]
                 if not task_ids and state.get("task_id"):
                     task_ids = [state.get("task_id")]
                 tasks_data = self.get_tasks()
