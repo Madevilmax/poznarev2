@@ -1017,16 +1017,27 @@ class TaskManagerBot:
             logging.error(f"Ошибка в get_filtered_tasks: {e}")
             return []
 
+    def build_group_signature(self, task: dict) -> str:
+        """Создает уникальную сигнатуру группы как на веб-странице"""
+        task_text = task.get("task_text", "") or ""
+        deadline = task.get("deadline", "") or ""
+        group_id = str(task.get("group_id", ""))
+        return f"{task_text}|{deadline}|{group_id}"
+
+    def tasks_match_group(self, base_task: dict, other_task: dict) -> bool:
+        """Проверяет, относятся ли задачи к одной группе по сигнатуре"""
+        return self.build_group_signature(base_task) == self.build_group_signature(other_task)
+
     def aggregate_group_tasks(self, tasks: List[dict]) -> List[dict]:
-        """Собирает групповые задачи в одну карточку по group_task_id"""
+        """Собирает групповые задачи в одну карточку по сигнатуре (как в вебе)"""
         grouped = {}
         for task in tasks:
-            group_key = task.get("group_task_id") or task.get("id")
+            group_key = self.build_group_signature(task)
             if group_key not in grouped:
                 grouped[group_key] = {
                     **task,
-                    "id": group_key,
-                    "group_task_id": group_key,
+                    "id": task.get("id"),
+                    "group_signature": group_key,
                     "assigned_users": [task.get("assigned_to")],
                     "task_ids": [task.get("id")],
                 }
@@ -1900,16 +1911,20 @@ class TaskManagerBot:
                 del self.user_states[user_id]
 
             related_task_ids = task_ids or []
-            if not related_task_ids and task.get("group_task_id"):
-                related_task_ids = [t.get("id") for t in self.get_tasks().get("tasks", [])
-                                    if t.get("group_task_id") == task.get("group_task_id")]
+            if not related_task_ids:
+                related_task_ids = [
+                    t.get("id") for t in self.get_tasks().get("tasks", [])
+                    if self.tasks_match_group(task, t)
+                ]
             if not related_task_ids:
                 related_task_ids = [task_id]
 
             related_assignees = assigned_users or []
-            if not related_assignees and task.get("group_task_id"):
-                related_assignees = [t.get("assigned_to") for t in self.get_tasks().get("tasks", [])
-                                     if t.get("group_task_id") == task.get("group_task_id")]
+            if not related_assignees:
+                related_assignees = [
+                    t.get("assigned_to") for t in self.get_tasks().get("tasks", [])
+                    if self.tasks_match_group(task, t)
+                ]
             if not related_assignees:
                 related_assignees = [task.get("assigned_to")]
 
@@ -1950,16 +1965,20 @@ class TaskManagerBot:
                 del self.user_states[user_id]
 
             related_task_ids = task_ids or []
-            if not related_task_ids and task.get("group_task_id"):
-                related_task_ids = [t.get("id") for t in self.get_tasks().get("tasks", [])
-                                    if t.get("group_task_id") == task.get("group_task_id")]
+            if not related_task_ids:
+                related_task_ids = [
+                    t.get("id") for t in self.get_tasks().get("tasks", [])
+                    if self.tasks_match_group(task, t)
+                ]
             if not related_task_ids:
                 related_task_ids = [task_id]
 
             related_assignees = assigned_users or []
-            if not related_assignees and task.get("group_task_id"):
-                related_assignees = [t.get("assigned_to") for t in self.get_tasks().get("tasks", [])
-                                     if t.get("group_task_id") == task.get("group_task_id")]
+            if not related_assignees:
+                related_assignees = [
+                    t.get("assigned_to") for t in self.get_tasks().get("tasks", [])
+                    if self.tasks_match_group(task, t)
+                ]
             if not related_assignees:
                 related_assignees = [task.get("assigned_to")]
 
@@ -2099,9 +2118,11 @@ class TaskManagerBot:
             target_ids = task_ids or []
             if not target_ids:
                 base_task = self.find_task_by_id(task_id)
-                if base_task and base_task.get("group_task_id"):
-                    target_ids = [t.get("id") for t in self.get_tasks().get("tasks", [])
-                                  if t.get("group_task_id") == base_task.get("group_task_id")]
+                if base_task:
+                    target_ids = [
+                        t.get("id") for t in self.get_tasks().get("tasks", [])
+                        if self.tasks_match_group(base_task, t)
+                    ]
             if not target_ids:
                 target_ids = [task_id]
             tasks_data = self.get_tasks()
