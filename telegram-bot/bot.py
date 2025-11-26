@@ -1048,7 +1048,14 @@ class TaskManagerBot:
                 if grouped[group_key].get("status") != "active" and task.get("status") == "active":
                     grouped[group_key]["status"] = "active"
 
-        return list(grouped.values())
+        cleaned_groups = []
+        for group in grouped.values():
+            # Удаляем дубликаты и упорядочиваем идентификаторы и исполнителей для стабильного отображения
+            group["assigned_users"] = list(dict.fromkeys([u for u in group.get("assigned_users", []) if u]))
+            group["task_ids"] = sorted(set([tid for tid in group.get("task_ids", []) if tid is not None]))
+            cleaned_groups.append(group)
+
+        return cleaned_groups
 
     def parse_task_date(self, date_str: str):
         """Парсит дату из строки, поддерживает форматы '%d.%m.%Y' и '%d.%m.%Y %H:%M:%S'"""
@@ -1108,6 +1115,16 @@ class TaskManagerBot:
             
             state = self.user_states[user.id]
             tasks = state.get("tasks", [])
+
+            # Подстраховываемся: если включен групповой режим, а задачи не агрегированы (нет task_ids),
+            # агрегируем их перед показом
+            if state.get("group_view") and tasks and not tasks[0].get("task_ids"):
+                tasks = self.aggregate_group_tasks(tasks)
+                tasks.sort(key=lambda x: (
+                    self.parse_task_date(x.get('deadline', '')) or datetime.max.date(),
+                    x.get('id', 0)
+                ))
+                state["tasks"] = tasks
             
             if not tasks:
                 await self.safe_send_message(chat.id, "📭 Нет задач для отображения с выбранными фильтрами", context.bot)
@@ -1132,14 +1149,17 @@ class TaskManagerBot:
                 task_preview = task.get('task_text', '')[:50] + "..." if len(task.get('task_text', '')) > 50 else task.get('task_text', '')
                 assigned_users = task.get("assigned_users") or [task.get('assigned_to')]
                 assigned_to_display = ", ".join(self.get_user_display_name(user) for user in assigned_users if user)
-                message_text += f"{status_icon} {i}. #{task.get('id', 'N/A')} - {task_preview}\n"
+                task_identifier = task.get("group_task_id") or (task.get("task_ids") or [task.get('id')])[0]
+                users_suffix = f" (x{len(task.get('task_ids', []))})" if len(task.get("task_ids", [])) > 1 else ""
+                message_text += f"{status_icon} {i}. #{task_identifier} - {task_preview}{users_suffix}\n"
                 message_text += f"    👤 {assigned_to_display} | ⏰ {task.get('deadline', '')}\n\n"
-            
+
             keyboard = []
-            
+
             for i, task in enumerate(page_tasks, start_idx + 1):
                 task_preview = task.get('task_text', '')[:20] + "..." if len(task.get('task_text', '')) > 20 else task.get('task_text', '')
-                keyboard.append([f"{i}. #{task.get('id')} - {task_preview}"])
+                task_identifier = task.get("group_task_id") or (task.get("task_ids") or [task.get('id')])[0]
+                keyboard.append([f"{i}. #{task_identifier} - {task_preview}"])
             
             nav_buttons = []
             if page > 0:
