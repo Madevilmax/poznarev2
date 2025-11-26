@@ -319,6 +319,7 @@ class TaskManagerBot:
             
         keyboard = [
             ["📋 Текущие задачи", "✅ Выполненные задачи"],
+            ["✍️ Создать личную задачу"],
             ["🏠 Главное меню"]
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -339,6 +340,16 @@ class TaskManagerBot:
 
             keyboard = [action_row]
         return InlineKeyboardMarkup(keyboard)
+
+    def get_deadline_keyboard(self):
+        """Возвращает клавиатуру для выбора срока и режима уведомлений"""
+        return [
+            ["⏰ Сегодня", "⏰ Завтра"],
+            ["⏰ Через 3 дня", "⏰ Через неделю"],
+            ["📅 Указать свою дату"],
+            ["🔔 Оповестить группу", "🔕 Не оповещать"],
+            ["❌ Отмена"]
+        ]
 
     async def safe_send_message(self, chat_id, text, bot, disable_notification=False, **kwargs):
         """Безопасная отправка сообщений с обработкой ошибок"""
@@ -603,12 +614,136 @@ class TaskManagerBot:
                 else:
                     chat_id = update.effective_chat.id
                 await self.safe_send_message(
-                    chat_id, 
-                    "❌ Произошла ошибка при загрузке меню задач", 
+                    chat_id,
+                    "❌ Произошла ошибка при загрузке меню задач",
                     context.bot
                 )
             except Exception:
                 pass
+
+    async def start_personal_task(self, update: Update, context: CallbackContext):
+        """Запускает создание личной задачи только для сотрудника"""
+        try:
+            user = update.effective_user
+            chat = update.effective_chat
+            username = f"@{user.username}" if user.username else f"user_{user.id}"
+
+            self.user_states[user.id] = {
+                "action": "personal_task",
+                "step": 1,
+                "username": username,
+                "selected_users": [username],
+                "selected_group": str(chat.id),
+                "skip_notification": False,
+                "created_at": datetime.now()
+            }
+
+            await self.safe_send_message(
+                chat.id,
+                "📝 Введите описание личной задачи:",
+                context.bot,
+                reply_markup=ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True) if self.is_private_chat(chat.type) else None
+            )
+        except Exception as e:
+            logging.error(f"Ошибка запуска личной задачи: {e}")
+            await self.safe_send_message(update.effective_chat.id, "❌ Не удалось начать создание задачи", context.bot)
+
+    async def handle_personal_task_creation(self, update: Update, context: CallbackContext, text: str, state: dict):
+        """Обрабатывает пошаговое создание личной задачи"""
+        chat = update.effective_chat
+
+        if text == "❌ Отмена":
+            del self.user_states[update.effective_user.id]
+            await self.show_my_tasks_menu(update, context)
+            return
+
+        deadline_map = {
+            "⏰ Сегодня": (datetime.now()).strftime("%d.%m.%Y"),
+            "⏰ Завтра": (datetime.now() + timedelta(days=1)).strftime("%d.%m.%Y"),
+            "⏰ Через 3 дня": (datetime.now() + timedelta(days=3)).strftime("%d.%m.%Y"),
+            "⏰ Через неделю": (datetime.now() + timedelta(days=7)).strftime("%d.%m.%Y")
+        }
+
+        if state.get("step") == 1:
+            state["task_text"] = text
+            state["step"] = 2
+            await self.safe_send_message(
+                chat.id,
+                "⏰ Выберите срок выполнения задачи:",
+                context.bot,
+                reply_markup=ReplyKeyboardMarkup(self.get_deadline_keyboard(), resize_keyboard=True) if self.is_private_chat(chat.type) else None
+            )
+            return
+
+        if state.get("step") == 2:
+            if text == "🔕 Не оповещать":
+                state["skip_notification"] = True
+                await self.safe_send_message(chat.id, "🔕 Уведомления отключены", context.bot)
+                await self.safe_send_message(
+                    chat.id,
+                    "⏰ Выберите срок выполнения задачи:",
+                    context.bot,
+                    reply_markup=ReplyKeyboardMarkup(self.get_deadline_keyboard(), resize_keyboard=True) if self.is_private_chat(chat.type) else None
+                )
+                return
+            if text == "🔔 Оповестить группу":
+                state["skip_notification"] = False
+                await self.safe_send_message(chat.id, "🔔 Уведомления включены", context.bot)
+                await self.safe_send_message(
+                    chat.id,
+                    "⏰ Выберите срок выполнения задачи:",
+                    context.bot,
+                    reply_markup=ReplyKeyboardMarkup(self.get_deadline_keyboard(), resize_keyboard=True) if self.is_private_chat(chat.type) else None
+                )
+                return
+
+            if text in deadline_map:
+                await self.create_task(update, context, state, deadline_map[text])
+                del self.user_states[update.effective_user.id]
+                return
+
+            if text == "📅 Указать свою дату":
+                state["step"] = 3
+                await self.safe_send_message(
+                    chat.id,
+                    "📅 Введите дату в формате ДД.ММ.ГГГГ:",
+                    context.bot,
+                    reply_markup=ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True) if self.is_private_chat(chat.type) else None
+                )
+                return
+
+            await self.safe_send_message(chat.id, "❌ Неверный выбор. Используйте кнопки ниже.", context.bot)
+            return
+
+        if state.get("step") == 3:
+            if text == "🔕 Не оповещать":
+                state["skip_notification"] = True
+                await self.safe_send_message(chat.id, "🔕 Уведомления отключены", context.bot)
+                await self.safe_send_message(
+                    chat.id,
+                    "⏰ Выберите срок выполнения задачи:",
+                    context.bot,
+                    reply_markup=ReplyKeyboardMarkup(self.get_deadline_keyboard(), resize_keyboard=True) if self.is_private_chat(chat.type) else None
+                )
+                state["step"] = 2
+                return
+            if text == "🔔 Оповестить группу":
+                state["skip_notification"] = False
+                await self.safe_send_message(chat.id, "🔔 Уведомления включены", context.bot)
+                await self.safe_send_message(
+                    chat.id,
+                    "⏰ Выберите срок выполнения задачи:",
+                    context.bot,
+                    reply_markup=ReplyKeyboardMarkup(self.get_deadline_keyboard(), resize_keyboard=True) if self.is_private_chat(chat.type) else None
+                )
+                state["step"] = 2
+                return
+
+            if self.is_valid_date(text):
+                await self.create_task(update, context, state, text)
+                del self.user_states[update.effective_user.id]
+            else:
+                await self.safe_send_message(chat.id, "❌ Неверный формат даты. Введите ДД.ММ.ГГГГ", context.bot)
 
     async def show_my_active_tasks(self, update: Update, context: CallbackContext):
         """Показывает активные задачи пользователя"""
@@ -757,12 +892,13 @@ class TaskManagerBot:
             
             # Инициализируем состояние правильно с пустым списком selected_users
             self.user_states[user.id] = {
-                "step": 1, 
+                "step": 1,
                 "username": username,
                 "chat_id": chat.id,
                 "group_users": display_users,
                 "group_users_usernames": all_users,
                 "selected_users": [],  # Явно инициализируем пустой список
+                "skip_notification": False,
                 "created_at": datetime.now()
             }
             
@@ -1202,7 +1338,9 @@ class TaskManagerBot:
                     await self.show_my_active_tasks(update, context)
                 elif text == "✅ Выполненные задачи":
                     await self.show_my_completed_tasks(update, context)
-                
+                elif text == "✍️ Создать личную задачу":
+                    await self.start_personal_task(update, context)
+
                 elif self.is_admin(username):
                     if text == "👑 Админ панель":
                         await self.show_admin_panel(update, context)
@@ -1256,7 +1394,7 @@ class TaskManagerBot:
 
             # Если мы дошли сюда, значит state существует
             current_action = state.get("action", "")
-            
+
             # Обработка управления администраторами
             if current_action == "add_admin":
                 if text == "❌ Отмена":
@@ -1310,6 +1448,10 @@ class TaskManagerBot:
                 
                 del self.user_states[user.id]
                 await self.show_admin_management(update, context)
+                return
+
+            if current_action == "personal_task":
+                await self.handle_personal_task_creation(update, context, text, state)
                 return
 
             # Обработка выбора задач с фильтрами
@@ -1481,7 +1623,18 @@ class TaskManagerBot:
                     "⏰ Через 3 дня": (datetime.now() + timedelta(days=3)).strftime("%d.%m.%Y"),
                     "⏰ Через неделю": (datetime.now() + timedelta(days=7)).strftime("%d.%m.%Y")
                 }
-                
+
+                if text == "🔕 Не оповещать":
+                    state["skip_notification"] = True
+                    await self.safe_send_message(chat.id, "🔕 Уведомления для этой задачи отключены", context.bot)
+                    await self.show_deadline_selection(update, context)
+                    return
+                if text == "🔔 Оповестить группу":
+                    state["skip_notification"] = False
+                    await self.safe_send_message(chat.id, "🔔 Уведомления включены", context.bot)
+                    await self.show_deadline_selection(update, context)
+                    return
+
                 if text in deadline_map:
                     await self.create_task(update, context, state, deadline_map[text])
                     del self.user_states[user.id]
@@ -1503,6 +1656,16 @@ class TaskManagerBot:
                 if text == "❌ Отмена":
                     del self.user_states[user.id]
                     await self.show_main_menu(update, context)
+                elif text == "🔕 Не оповещать":
+                    state["skip_notification"] = True
+                    await self.safe_send_message(chat.id, "🔕 Уведомления для этой задачи отключены", context.bot)
+                    await self.show_deadline_selection(update, context)
+                    return
+                elif text == "🔔 Оповестить группу":
+                    state["skip_notification"] = False
+                    await self.safe_send_message(chat.id, "🔔 Уведомления включены", context.bot)
+                    await self.show_deadline_selection(update, context)
+                    return
                 elif self.is_valid_date(text):
                     await self.create_task(update, context, state, text)
                     del self.user_states[user.id]
@@ -1745,8 +1908,8 @@ class TaskManagerBot:
             self.user_states[user_id] = {
                 "action": "edit_task_description",
                 "task_id": task_id,
-                "group_task_ids": task_ids or [task_id],
-                "assigned_users": assigned_users or [task.get("assigned_to")],
+                "group_task_ids": related_task_ids,
+                "assigned_users": related_assignees,
                 "created_at": datetime.now()
             }
             
@@ -1794,8 +1957,8 @@ class TaskManagerBot:
             self.user_states[user_id] = {
                 "action": "change_deadline_for_task",
                 "task_id": task_id,
-                "group_task_ids": task_ids or [task_id],
-                "assigned_users": assigned_users or [task.get("assigned_to")],
+                "group_task_ids": related_task_ids,
+                "assigned_users": related_assignees,
                 "created_at": datetime.now()
             }
             
@@ -1932,7 +2095,6 @@ class TaskManagerBot:
                                   if t.get("group_task_id") == base_task.get("group_task_id")]
             if not target_ids:
                 target_ids = [task_id]
-            target_ids = task_ids or [task_id]
             tasks_data = self.get_tasks()
             updated_any = False
             old_deadline = None
@@ -2156,16 +2318,13 @@ class TaskManagerBot:
     async def show_deadline_selection(self, update: Update, context: CallbackContext):
         """Показывает выбор срока выполнения"""
         try:
-            deadline_keyboard = [
-                ["⏰ Сегодня", "⏰ Завтра"],
-                ["⏰ Через 3 дня", "⏰ Через неделю"],
-                ["📅 Указать свою дату"],
-                ["❌ Отмена"]
-            ]
+            deadline_keyboard = self.get_deadline_keyboard()
+            state = self.user_states.get(update.effective_user.id, {})
+            notify_status = "🔔 Оповещения включены" if not state.get("skip_notification") else "🔕 Оповещения отключены"
 
             await self.safe_send_message(
                 update.effective_chat.id,
-                "⏰ Выберите срок выполнения задачи:",
+                f"⏰ Выберите срок выполнения задачи:\n{notify_status}",
                 context.bot,
                 reply_markup=ReplyKeyboardMarkup(deadline_keyboard, resize_keyboard=True) if self.is_private_chat(update.effective_chat.type) else None
             )
@@ -2186,6 +2345,7 @@ class TaskManagerBot:
             tasks_data = self.get_tasks()
             start_id = self.get_next_task_id()
             created_count = 0
+            skip_notification = state.get("skip_notification", False)
 
             group_task_id = start_id if len(selected_users) > 1 else None
 
@@ -2220,24 +2380,29 @@ class TaskManagerBot:
                 assigned_users = ", ".join(assigned_users_list)
                 assigned_by_display = self.get_user_display_name(state['username'])
 
-                group_msg = (
-                    "🎯 Новая задача!\n\n"
-                    f"👥 Исполнители: {assigned_users}\n"
-                    f"📝 Задача: {state['task_text']}\n"
-                    f"⏰ Срок: {deadline}\n"
-                    f"👑 Назначил: {assigned_by_display}\n\n"
-                    "Не забудьте выполнить задачу! ✅"
-                )
+                if not skip_notification:
+                    group_msg = (
+                        "🎯 Новая задача!\n\n"
+                        f"👥 Исполнители: {assigned_users}\n"
+                        f"📝 Задача: {state['task_text']}\n"
+                        f"⏰ Срок: {deadline}\n"
+                        f"👑 Назначил: {assigned_by_display}\n\n"
+                        "Не забудьте выполнить задачу! ✅"
+                    )
 
-                await self.safe_send_message(
-                    state["selected_group"],
-                    group_msg,
-                    context.bot
-                )
+                    await self.safe_send_message(
+                        state["selected_group"],
+                        group_msg,
+                        context.bot
+                    )
 
             await self.safe_send_message(
                 update.effective_chat.id,
-                f"✅ Создано {created_count} задач!" + (" Уведомление отправлено в группу!" if config_data.get("notifications", {}).get("task_created", True) else ""),
+                f"✅ Создано {created_count} задач!" + (
+                    " Уведомление отправлено в группу!"
+                    if config_data.get("notifications", {}).get("task_created", True) and not skip_notification
+                    else ""
+                ),
                 context.bot,
                 reply_markup=self.get_main_keyboard(self.is_admin(state["username"]), update.effective_chat.type)
             )

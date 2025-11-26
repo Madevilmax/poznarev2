@@ -860,6 +860,14 @@
                         </div>
 
                         <div class="form-group">
+                            <label for="assignedBy">Кто назначает задачу:</label>
+                            <select id="assignedBy" class="form-control" required>
+                                <option value="">Загрузка списка администраторов...</option>
+                            </select>
+                            <div class="form-help" id="assignerHelp">Выберите администратора, от имени которого создается задача.</div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Исполнители:</label>
                             <div class="checkbox-container" id="usersCheckboxContainer">
                                 <div class="loading">Загрузка пользователей...</div>
@@ -875,6 +883,14 @@
                             <div class="groups-container" id="groupsContainer">
                                 <div class="loading">Загрузка групп...</div>
                             </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="toggle-row" style="justify-content: space-between;">
+                                <span>Создать без оповещения в группу</span>
+                                <input type="checkbox" id="skipNotification">
+                            </label>
+                            <div class="form-help">Включите, если не нужно отправлять сообщение в выбранный чат.</div>
                         </div>
 
                         <div class="form-group">
@@ -1114,6 +1130,7 @@
             let currentAssignerFilter = 'all';
             let currentInitiatorFilter = 'all';
             let expandedGroups = new Set();
+            let adminList = [];
 
             // Загрузка данных при старте
             document.addEventListener('DOMContentLoaded', function () {
@@ -1185,6 +1202,8 @@
                         userFilter.appendChild(option);
                     });
 
+                    updateAssignerSelect();
+
                 } catch (error) {
                     console.error('❌ Ошибка загрузки пользователей:', error);
                     document.getElementById('usersCheckboxContainer').innerHTML =
@@ -1233,6 +1252,9 @@
                     const data = await response.json();
 
                     notificationSettings = data.notifications || {};
+                    adminList = (data.admins || []).map(admin => normalizeUsername(admin)).filter(Boolean);
+                    updateAssignerSelect();
+
                     document.getElementById('notifyCreated').checked = Boolean(notificationSettings.task_created);
                     document.getElementById('notifyCompleted').checked = Boolean(notificationSettings.task_completed);
                     document.getElementById('notifyDeleted').checked = Boolean(notificationSettings.task_deleted);
@@ -1240,7 +1262,38 @@
                 } catch (error) {
                     console.error('❌ Ошибка загрузки конфигурации:', error);
                     document.getElementById('notificationStatus').textContent = '❌ Не удалось загрузить оповещения';
+                    const assignerHelp = document.getElementById('assignerHelp');
+                    if (assignerHelp) {
+                        assignerHelp.textContent = '❌ Не удалось загрузить список администраторов';
+                    }
                 }
+            }
+
+            function updateAssignerSelect() {
+                const select = document.getElementById('assignedBy');
+                const help = document.getElementById('assignerHelp');
+                if (!select || !help) return;
+
+                select.innerHTML = '<option value="">Выберите администратора</option>';
+
+                if (!adminList || adminList.length === 0) {
+                    select.disabled = true;
+                    help.textContent = 'Добавьте администраторов в конфигурацию, чтобы выбрать назначившего.';
+                    return;
+                }
+
+                select.disabled = false;
+                adminList
+                    .sort((a, b) => a.localeCompare(b))
+                    .forEach(admin => {
+                        const option = document.createElement('option');
+                        option.value = admin;
+                        option.textContent = getPersonDisplayName(admin);
+                        select.appendChild(option);
+                    });
+
+                select.value = adminList[0];
+                help.textContent = 'Выберите администратора, от имени которого создается задача.';
             }
 
             // Отображение групп
@@ -1789,6 +1842,9 @@
                             showNotification('✅ Задача создана!', 'success');
                         }
                         document.getElementById('taskForm').reset();
+                        if (adminList.length > 0) {
+                            document.getElementById('assignedBy').value = adminList[0];
+                        }
                         // Сбрасываем выбранных пользователей
                         selectedUsers = [];
                         updateSelectedUsersDisplay();
@@ -2230,10 +2286,16 @@
 
                     const taskText = document.getElementById('taskText').value.trim();
                     const deadline = document.getElementById('deadline').value;
+                    const assignedBy = document.getElementById('assignedBy').value;
                     const selectedGroup = getSelectedGroup();
 
                     if (!taskText || !deadline) {
                         showNotification('❌ Заполните все поля', 'error');
+                        return;
+                    }
+
+                    if (!assignedBy) {
+                        showNotification('❌ Выберите администратора, который назначает задачу', 'error');
                         return;
                     }
 
@@ -2251,7 +2313,10 @@
                         task_text: taskText,
                         assigned_to: selectedUsers,
                         deadline: formatDateForDisplay(deadline),
-                        group_id: selectedGroup
+                        group_id: selectedGroup,
+                        assigned_by: assignedBy,
+                        initiator: assignedBy,
+                        skip_notification: document.getElementById('skipNotification').checked
                     };
 
                     createTask(formData);
