@@ -119,24 +119,10 @@ def find_task_by_id(tasks_data, task_id):
 
 
 def normalize_username(username: str) -> str:
-    """Возвращает логин с ведущим @ без лишних пробелов"""
+    """Возвращает логин с ведущим @"""
     if not username:
         return ""
-    cleaned = str(username).strip()
-    cleaned = cleaned if cleaned.startswith("@") else f"@{cleaned}"
-    return cleaned
-
-
-def find_existing_username_key(all_users: dict, username: str) -> str:
-    """Находит уже существующий ключ пользователя по логину (без учета регистра)"""
-    normalized = normalize_username(username)
-    canonical = normalized.lower()
-
-    for existing_username in all_users.keys():
-        if isinstance(existing_username, str) and existing_username.lower() == canonical:
-            return existing_username
-
-    return normalized
+    return username if username.startswith("@") else f"@{username}"
 
 # API Routes
 @app.route('/api/tasks', methods=['GET'])
@@ -378,30 +364,7 @@ def create_or_update_user():
         now_str = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
         all_users = users_data.setdefault("all_users", {})
-        users_groups = users_data.setdefault("groups", {})
-        existing_username_key = find_existing_username_key(all_users, username)
-        was_existing = existing_username_key in all_users
-        user_entry = all_users.get(existing_username_key, {})
-        duplicate_keys = [u for u in list(all_users.keys())
-                          if isinstance(u, str) and u.lower() == existing_username_key.lower() and u != existing_username_key]
-
-        for duplicate_key in duplicate_keys:
-            duplicate_entry = all_users.pop(duplicate_key, {})
-            if duplicate_entry:
-                merged_groups = set(user_entry.get("groups", [])) | set(duplicate_entry.get("groups", []))
-                user_entry["groups"] = sorted(merged_groups)
-                if not user_entry.get("first_seen") and duplicate_entry.get("first_seen"):
-                    user_entry["first_seen"] = duplicate_entry.get("first_seen")
-
-            for group_id, group_ref in users_groups.items():
-                group_users = group_ref.get("users", {})
-                if duplicate_key in group_users:
-                    duplicate_user_entry = group_users.pop(duplicate_key)
-                    target_group_user = group_users.setdefault(existing_username_key, {})
-                    target_group_user.setdefault("added_at", duplicate_user_entry.get("added_at", now_str))
-                    target_group_user["full_name"] = full_name or duplicate_user_entry.get("full_name", existing_username_key)
-                    target_group_user["last_seen"] = now_str
-
+        user_entry = all_users.get(username, {})
         user_entry.update({
             "full_name": full_name,
             "last_seen": now_str,
@@ -412,23 +375,22 @@ def create_or_update_user():
             existing_groups = set(user_entry.get("groups", []))
             user_entry["groups"] = sorted(existing_groups.union(set(groups)))
 
-        all_users[existing_username_key] = user_entry
+        all_users[username] = user_entry
 
         # Добавляем пользователя в группы
+        users_groups = users_data.setdefault("groups", {})
         for group_id in user_entry.get("groups", groups):
             group_ref = users_groups.setdefault(group_id, {"title": f"Группа {group_id}", "users": {}, "created_at": now_str})
             group_users = group_ref.setdefault("users", {})
-            group_user = group_users.get(existing_username_key, {})
-            group_users[existing_username_key] = {
+            group_users[username] = {
                 "full_name": full_name,
                 "last_seen": now_str,
-                "added_at": group_user.get("added_at", now_str)
+                "added_at": group_users.get(username, {}).get("added_at", now_str)
             }
 
         if data_manager.save_data_to_file(users_data, USERS_FILE):
-            action = "updated" if was_existing else "created"
-            logging.info(f"✅ Пользователь {existing_username_key} сохранен ({action})")
-            return jsonify({"success": True, "user": user_entry, "action": action})
+            logging.info(f"✅ Пользователь {username} сохранен")
+            return jsonify({"success": True, "user": user_entry})
         return jsonify({"success": False, "error": "Ошибка сохранения"}), 500
     except Exception as e:
         logging.error(f"❌ Ошибка сохранения пользователя: {e}")
@@ -446,34 +408,12 @@ def update_user(username):
 
         users_data = data_manager.load_data_from_file(USERS_FILE, {"groups": {}, "all_users": {}})
         all_users = users_data.setdefault("all_users", {})
-        users_groups = users_data.setdefault("groups", {})
-        existing_username_key = find_existing_username_key(all_users, normalized_username)
 
-        if existing_username_key not in all_users:
+        if normalized_username not in all_users:
             return jsonify({"success": False, "error": "Пользователь не найден"}), 404
 
         now_str = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-        user_entry = all_users[existing_username_key]
-
-        duplicate_keys = [u for u in list(all_users.keys())
-                          if isinstance(u, str) and u.lower() == existing_username_key.lower() and u != existing_username_key]
-
-        for duplicate_key in duplicate_keys:
-            duplicate_entry = all_users.pop(duplicate_key, {})
-            if duplicate_entry:
-                merged_groups = set(user_entry.get("groups", [])) | set(duplicate_entry.get("groups", []))
-                user_entry["groups"] = sorted(merged_groups)
-                if not user_entry.get("first_seen") and duplicate_entry.get("first_seen"):
-                    user_entry["first_seen"] = duplicate_entry.get("first_seen")
-
-            for group_id, group_ref in users_groups.items():
-                group_users = group_ref.get("users", {})
-                if duplicate_key in group_users:
-                    duplicate_user_entry = group_users.pop(duplicate_key)
-                    target_group_user = group_users.setdefault(existing_username_key, {})
-                    target_group_user.setdefault("added_at", duplicate_user_entry.get("added_at", now_str))
-                    target_group_user["full_name"] = full_name or duplicate_user_entry.get("full_name", existing_username_key)
-                    target_group_user["last_seen"] = now_str
+        user_entry = all_users[normalized_username]
 
         if full_name:
             user_entry["full_name"] = full_name
@@ -483,18 +423,18 @@ def update_user(username):
             user_entry["groups"] = sorted(set(groups))
 
         # Синхронизируем данные групп
+        users_groups = users_data.setdefault("groups", {})
         for group_id in user_entry.get("groups", []):
             group_ref = users_groups.setdefault(group_id, {"title": f"Группа {group_id}", "users": {}, "created_at": now_str})
             group_users = group_ref.setdefault("users", {})
-            group_user = group_users.get(existing_username_key, {})
-            group_users[existing_username_key] = {
-                "full_name": user_entry.get("full_name", existing_username_key),
+            group_users[normalized_username] = {
+                "full_name": user_entry.get("full_name", normalized_username),
                 "last_seen": now_str,
-                "added_at": group_user.get("added_at", now_str)
+                "added_at": group_users.get(normalized_username, {}).get("added_at", now_str)
             }
 
         if data_manager.save_data_to_file(users_data, USERS_FILE):
-            logging.info(f"✅ Пользователь {existing_username_key} обновлен")
+            logging.info(f"✅ Пользователь {normalized_username} обновлен")
             return jsonify({"success": True, "user": user_entry})
         return jsonify({"success": False, "error": "Ошибка сохранения"}), 500
     except Exception as e:
