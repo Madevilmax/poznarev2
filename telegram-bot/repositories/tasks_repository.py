@@ -121,10 +121,8 @@ class TasksRepository:
         try:
             cursor.execute(
                 """
-                SELECT t.id, t.group_task_id, t.assigned_to, t.assigned_by, t.status, t.created_at, t.completed_at,
-                       tg.task_text, tg.deadline, tg.group_id
-                FROM tasks t
-                LEFT JOIN task_groups tg ON tg.group_task_id = t.group_task_id
+                SELECT id, group_task_id, assigned_to, assigned_by, status, created_at, completed_at
+                FROM tasks
                 """
             )
             rows = cursor.fetchall()
@@ -141,11 +139,9 @@ class TasksRepository:
         try:
             cursor.execute(
                 """
-                SELECT t.id, t.group_task_id, t.assigned_to, t.assigned_by, t.status, t.created_at, t.completed_at,
-                       tg.task_text, tg.deadline, tg.group_id
-                FROM tasks t
-                LEFT JOIN task_groups tg ON tg.group_task_id = t.group_task_id
-                WHERE t.group_task_id = ?
+                SELECT id, group_task_id, assigned_to, assigned_by, status, created_at, completed_at
+                FROM tasks
+                WHERE group_task_id = ?
                 """,
                 (group_task_id,),
             )
@@ -163,11 +159,9 @@ class TasksRepository:
         try:
             cursor.execute(
                 """
-                SELECT t.id, t.group_task_id, t.assigned_to, t.assigned_by, t.status, t.created_at, t.completed_at,
-                       tg.task_text, tg.deadline, tg.group_id
-                FROM tasks t
-                LEFT JOIN task_groups tg ON tg.group_task_id = t.group_task_id
-                WHERE t.id = ?
+                SELECT id, group_task_id, assigned_to, assigned_by, status, created_at, completed_at
+                FROM tasks
+                WHERE id = ?
                 """,
                 (task_id,),
             )
@@ -293,7 +287,4 @@ class TasksRepository:
             status=row[4],
             created_at=row[5],
             completed_at=row[6],
-            task_text=row[7] if len(row) > 7 else None,
-            deadline=row[8] if len(row) > 8 else None,
-            group_id=row[9] if len(row) > 9 else None,
         )

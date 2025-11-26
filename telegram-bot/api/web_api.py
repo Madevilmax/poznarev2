@@ -5,21 +5,8 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from db.database import init_db
-from models import (
-    Config,
-    Group,
-    Stats,
-    TaskAddExecutors,
-    TaskCreate,
-    TaskGroupUpdate,
-    TaskStatusUpdate,
-    User,
-)
-from repositories.config_repository import ConfigRepository
-from repositories.groups_repository import GroupsRepository
-from repositories.stats_repository import StatsRepository
+from models import TaskAddExecutors, TaskCreate, TaskGroupUpdate, TaskStatusUpdate
 from repositories.tasks_repository import TasksRepository
-from repositories.users_repository import UsersRepository
 
 
 class GroupOperationRequest(TaskGroupUpdate):
@@ -36,10 +23,6 @@ app.add_middleware(
 )
 
 repository = TasksRepository()
-users_repo = UsersRepository()
-groups_repo = GroupsRepository()
-config_repo = ConfigRepository()
-stats_repo = StatsRepository()
 
 
 @app.on_event("startup")
@@ -51,58 +34,6 @@ def startup_event() -> None:
 def get_tasks() -> dict:
     tasks = repository.get_all_tasks()
     return {"tasks": tasks}
-
-
-@app.get("/api/users")
-def get_users() -> dict:
-    users = users_repo.get_all_users()
-    return {"users": [u.model_dump() for u in users]}
-
-
-class UserPayload(User):
-    groups: list[str] = []
-
-
-@app.post("/api/users")
-def create_or_update_user(payload: UserPayload) -> dict:
-    user = users_repo.upsert_user(payload.username, payload.full_name, payload.groups)
-    return {"success": True, "user": user}
-
-
-@app.put("/api/users/{username}")
-def update_user(username: str, payload: UserPayload) -> dict:
-    try:
-        user = users_repo.update_user(username, payload.full_name, payload.groups)
-        return {"success": True, "user": user}
-    except ValueError as exc:
-        logging.exception("User %s not found", username)
-        raise HTTPException(status_code=404, detail=str(exc))
-
-
-@app.get("/api/groups")
-def get_groups() -> dict:
-    groups = groups_repo.get_all_groups()
-    return {"groups": [g.model_dump() for g in groups]}
-
-
-@app.get("/api/config")
-def get_config() -> Config:
-    return config_repo.get_config()
-
-
-class ConfigPayload(Config):
-    pass
-
-
-@app.post("/api/config")
-def set_config(payload: ConfigPayload) -> Config:
-    cfg = Config(**payload.model_dump())
-    return config_repo.set_config(cfg)
-
-
-@app.get("/api/stats")
-def get_stats() -> Stats:
-    return stats_repo.get_stats()
 
 
 @app.post("/api/tasks")

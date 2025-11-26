@@ -5,7 +5,6 @@ from typing import Optional
 
 
 DB_PATH = Path(__file__).resolve().parent.parent / "tasks.db"
-SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 
 def get_connection() -> sqlite3.Connection:
@@ -19,8 +18,32 @@ def init_db() -> None:
     connection: Optional[sqlite3.Connection] = None
     try:
         connection = get_connection()
-        schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
-        connection.executescript(schema_sql)
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS task_groups (
+                group_task_id INTEGER PRIMARY KEY,
+                task_text TEXT NOT NULL,
+                deadline TEXT NOT NULL,
+                group_id TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_task_id INTEGER NOT NULL,
+                assigned_to TEXT NOT NULL,
+                assigned_by TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                completed_at TEXT NOT NULL,
+                FOREIGN KEY (group_task_id) REFERENCES task_groups (group_task_id)
+            )
+            """
+        )
         connection.commit()
         logging.info("Database initialized successfully")
     except Exception:
