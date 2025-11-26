@@ -1203,13 +1203,15 @@ class TaskManagerBot:
             state = self.user_states[user.id]
             group_filter = state.get("group_filter")
             raw_tasks = self.get_filtered_tasks(task_filter, date_filter, group_filter)
-            state["tasks"] = self.aggregate_group_tasks(raw_tasks) if state.get("group_view") else raw_tasks
+            tasks_for_state = self.aggregate_group_tasks(raw_tasks) if state.get("group_view") else raw_tasks
+
             if state.get("group_view"):
-                state["tasks"].sort(key=lambda x: (
+                tasks_for_state.sort(key=lambda x: (
                     self.parse_task_date(x.get('deadline', '')) or datetime.max.date(),
                     x.get('id', 0)
                 ))
-            state["tasks"] = self.get_filtered_tasks(task_filter, date_filter, group_filter)
+
+            state["tasks"] = tasks_for_state
             state["task_filter"] = task_filter
             state["date_filter"] = date_filter
             state["current_page"] = 0
