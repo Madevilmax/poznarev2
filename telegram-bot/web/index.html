@@ -954,6 +954,13 @@
                         </div>
 
                         <div class="filter-group">
+                            <label>Кто назначил:</label>
+                            <select id="assignerFilter" class="form-control">
+                                <option value="all">Все назначающие</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
                             <label>Сортировка:</label>
                             <select id="sortFilter" class="form-control">
                                 <option value="newest">Сначала новые</option>
@@ -1410,7 +1417,9 @@
             // Загрузка задач
             async function loadTasks(statusFilter = 'all', userFilter = 'all', sort = 'newest') {
                 try {
-                    console.log(`📋 Загрузка задач: статус=${statusFilter}, пользователь=${userFilter}, сортировка=${sort}`);
+                    console.log(
+                        `📋 Загрузка задач: статус=${statusFilter}, пользователь=${userFilter}, назначил=${currentAssignerFilter}, сортировка=${sort}`
+                    );
                     const response = await fetch(`${API_BASE}/tasks`);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const data = await response.json();
@@ -1420,6 +1429,7 @@
                     }
 
                     currentTasks = data.tasks || [];
+                    updateAssignerFilterOptions(currentTasks);
                     console.log(`📋 Загружено задач: ${currentTasks.length}`);
                     groupTasks(currentTasks, statusFilter, userFilter, sort);
                 } catch (error) {
@@ -1656,6 +1666,41 @@
             function getGroupName(groupId) {
                 const group = allGroups.find(g => g.id === groupId);
                 return group ? group.title : `Группа ${groupId}`;
+            }
+
+            function updateAssignerFilterOptions(tasks) {
+                const assignerFilter = document.getElementById('assignerFilter');
+                if (!assignerFilter) return;
+
+                const previousSelection = currentAssignerFilter;
+                const assignerMap = new Map();
+
+                tasks.forEach(task => {
+                    const normalized = normalizeUsername(task.assigned_by || '');
+                    if (!normalized) return;
+                    if (!assignerMap.has(normalized)) {
+                        assignerMap.set(normalized, task.assigned_by || normalized);
+                    }
+                });
+
+                availableAssigners = Array.from(assignerMap.keys()).sort((a, b) => a.localeCompare(b));
+
+                assignerFilter.innerHTML = '<option value="all">Все назначающие</option>';
+                availableAssigners.forEach(key => {
+                    const option = document.createElement('option');
+                    const rawValue = assignerMap.get(key);
+                    option.value = key;
+                    option.textContent = getAssignerDisplayName(rawValue, key);
+                    assignerFilter.appendChild(option);
+                });
+
+                if (previousSelection !== 'all' && assignerMap.has(previousSelection)) {
+                    assignerFilter.value = previousSelection;
+                    currentAssignerFilter = previousSelection;
+                } else {
+                    assignerFilter.value = 'all';
+                    currentAssignerFilter = 'all';
+                }
             }
 
             // Проверка просроченности задачи
@@ -2331,6 +2376,12 @@
                 // Фильтр по пользователю
                 document.getElementById('userFilter').addEventListener('change', function () {
                     currentUserFilter = this.value;
+                    loadTasks(currentFilter, currentUserFilter, currentSort);
+                });
+
+                // Фильтр по назначившему
+                document.getElementById('assignerFilter').addEventListener('change', function () {
+                    currentAssignerFilter = this.value;
                     loadTasks(currentFilter, currentUserFilter, currentSort);
                 });
 
