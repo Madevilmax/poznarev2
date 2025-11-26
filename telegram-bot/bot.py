@@ -891,26 +891,15 @@ class TaskManagerBot:
                     **task,
                     "id": group_key,
                     "group_task_id": group_key,
-                    "assigned_users": [],
-                    "assigned_statuses": [],
-                    "task_ids": [],
+                    "assigned_users": [task.get("assigned_to")],
+                    "task_ids": [task.get("id")],
                 }
+            else:
+                grouped[group_key]["assigned_users"].append(task.get("assigned_to"))
+                grouped[group_key]["task_ids"].append(task.get("id"))
 
-            assigned_to = task.get("assigned_to")
-            if assigned_to and assigned_to not in grouped[group_key]["assigned_users"]:
-                grouped[group_key]["assigned_users"].append(assigned_to)
-
-            grouped[group_key]["task_ids"].append(task.get("id"))
-            grouped[group_key]["assigned_statuses"].append({
-                "user": assigned_to,
-                "status": task.get("status", "active"),
-                "completed_at": task.get("completed_at", ""),
-            })
-
-            if task.get("status") != "completed":
-                grouped[group_key]["status"] = "active"
-            elif grouped[group_key].get("status") != "active":
-                grouped[group_key]["status"] = "completed"
+                if grouped[group_key].get("status") != "active" and task.get("status") == "active":
+                    grouped[group_key]["status"] = "active"
 
         return list(grouped.values())
 
@@ -995,24 +984,9 @@ class TaskManagerBot:
 
                 task_preview = task.get('task_text', '')[:50] + "..." if len(task.get('task_text', '')) > 50 else task.get('task_text', '')
                 assigned_users = task.get("assigned_users") or [task.get('assigned_to')]
-                assigned_statuses = task.get("assigned_statuses") or []
-
-                if assigned_statuses:
-                    status_lines = []
-                    for assignee in assigned_statuses:
-                        assignee_status = assignee.get("status", "active")
-                        status_icon_user = "🟢" if assignee_status == "completed" else "🟡"
-                        if assignee_status != "completed" and self.is_task_overdue(task.get('deadline', '')):
-                            status_icon_user = "🔴"
-                        status_lines.append(f"    {status_icon_user} {self.get_user_display_name(assignee.get('user'))}")
-
-                    message_text += f"{status_icon} {i}. #{task.get('id', 'N/A')} - {task_preview}\n"
-                    message_text += "    👥 Исполнители:\n" + "\n".join(status_lines) + "\n"
-                    message_text += f"    ⏰ {task.get('deadline', '')}\n\n"
-                else:
-                    assigned_to_display = ", ".join(self.get_user_display_name(user) for user in assigned_users if user)
-                    message_text += f"{status_icon} {i}. #{task.get('id', 'N/A')} - {task_preview}\n"
-                    message_text += f"    👤 {assigned_to_display} | ⏰ {task.get('deadline', '')}\n\n"
+                assigned_to_display = ", ".join(self.get_user_display_name(user) for user in assigned_users if user)
+                message_text += f"{status_icon} {i}. #{task.get('id', 'N/A')} - {task_preview}\n"
+                message_text += f"    👤 {assigned_to_display} | ⏰ {task.get('deadline', '')}\n\n"
             
             keyboard = []
             
@@ -1099,6 +1073,7 @@ class TaskManagerBot:
                     self.parse_task_date(x.get('deadline', '')) or datetime.max.date(),
                     x.get('id', 0)
                 ))
+            state["tasks"] = self.get_filtered_tasks(task_filter, date_filter, group_filter)
             state["task_filter"] = task_filter
             state["date_filter"] = date_filter
             state["current_page"] = 0
@@ -1770,8 +1745,8 @@ class TaskManagerBot:
             self.user_states[user_id] = {
                 "action": "edit_task_description",
                 "task_id": task_id,
-                "group_task_ids": related_task_ids,
-                "assigned_users": [u for u in related_assignees if u],
+                "group_task_ids": task_ids or [task_id],
+                "assigned_users": assigned_users or [task.get("assigned_to")],
                 "created_at": datetime.now()
             }
             
@@ -1819,8 +1794,8 @@ class TaskManagerBot:
             self.user_states[user_id] = {
                 "action": "change_deadline_for_task",
                 "task_id": task_id,
-                "group_task_ids": related_task_ids,
-                "assigned_users": [u for u in related_assignees if u],
+                "group_task_ids": task_ids or [task_id],
+                "assigned_users": assigned_users or [task.get("assigned_to")],
                 "created_at": datetime.now()
             }
             
@@ -1957,6 +1932,7 @@ class TaskManagerBot:
                                   if t.get("group_task_id") == base_task.get("group_task_id")]
             if not target_ids:
                 target_ids = [task_id]
+            target_ids = task_ids or [task_id]
             tasks_data = self.get_tasks()
             updated_any = False
             old_deadline = None
@@ -2261,11 +2237,7 @@ class TaskManagerBot:
 
             await self.safe_send_message(
                 update.effective_chat.id,
-                f"✅ Создано {created_count} задач!" + (
-                    " Уведомление отправлено в группу!"
-                    if config_data.get("notifications", {}).get("task_created", True)
-                    else ""
-                ),
+                f"✅ Создано {created_count} задач!" + (" Уведомление отправлено в группу!" if config_data.get("notifications", {}).get("task_created", True) else ""),
                 context.bot,
                 reply_markup=self.get_main_keyboard(self.is_admin(state["username"]), update.effective_chat.type)
             )
