@@ -37,13 +37,14 @@ class TaskManagerBot:
 
     def __init__(self, token):
         self.token = token
-        self.tasks_file = 'tasks.json'
-        self.users_file = 'users.json'
-        self.config_file = 'config.json'
-        
-        # Создаем папку для бэкапов
-        self.backup_dir = 'backups'
-        os.makedirs(self.backup_dir, exist_ok=True)
+        self.base_dir = Path(__file__).parent
+        self.tasks_file = self.base_dir / 'tasks.json'
+        self.users_file = self.base_dir / 'users.json'
+        self.config_file = self.base_dir / 'config.json'
+
+        # Создаем папку для бэкапов рядом со скриптом
+        self.backup_dir = self.base_dir / 'backups'
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
         
         # Состояния пользователей
         self.user_states = {}
@@ -59,25 +60,26 @@ class TaskManagerBot:
     def load_data(self, filename, default_data):
         """Загружает данные из файла"""
         try:
-            if os.path.exists(filename):
-                with open(filename, 'r', encoding='utf-8') as f:
+            path = Path(filename)
+
+            if path.exists():
+                with open(path, 'r', encoding='utf-8') as f:
                     return json.load(f)
 
-            path = Path(filename)
             example_candidates = [
                 path.with_name(f"{path.stem}.example{path.suffix}"),
-                Path(f"{filename}.example")
+                self.base_dir / f"{path.name}.example"
             ]
 
             for example_path in example_candidates:
                 if example_path.exists():
-                    logging.info(f"Создаем {filename} из шаблона {example_path.name}")
-                    shutil.copy2(example_path, filename)
-                    with open(filename, 'r', encoding='utf-8') as f:
+                    logging.info(f"Создаем {path.name} из шаблона {example_path.name}")
+                    shutil.copy2(example_path, path)
+                    with open(path, 'r', encoding='utf-8') as f:
                         return json.load(f)
 
-            logging.warning(f"Файл {filename} не найден, создаем с данными по умолчанию")
-            self.save_data(default_data, filename)
+            logging.warning(f"Файл {path.name} не найден, создаем с данными по умолчанию")
+            self.save_data(default_data, path)
             return default_data.copy()
         except Exception as e:
             logging.error(f"Ошибка загрузки {filename}: {e}")
@@ -87,12 +89,12 @@ class TaskManagerBot:
         """Сохраняет данные в файл"""
         try:
             # Создаем временный файл
-            temp_file = f"{filename}.tmp"
+            temp_file = Path(f"{filename}.tmp")
             with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            
+
             # Заменяем оригинальный файл
-            if os.path.exists(filename):
+            if Path(filename).exists():
                 os.replace(temp_file, filename)
             else:
                 os.rename(temp_file, filename)
@@ -144,19 +146,20 @@ class TaskManagerBot:
         """Создает резервную копию данных"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
+
             for filename in [self.tasks_file, self.users_file, self.config_file]:
-                if os.path.exists(filename):
-                    backup_name = os.path.join(self.backup_dir, f"{filename}.{timestamp}.bak")
-                    shutil.copy2(filename, backup_name)
-            
+                file_path = Path(filename)
+                if file_path.exists():
+                    backup_name = self.backup_dir / f"{file_path.name}.{timestamp}.bak"
+                    shutil.copy2(file_path, backup_name)
+
             # Удаляем старые бэкапы (оставляем последние 10)
             try:
                 backups = []
                 for f in os.listdir(self.backup_dir):
                     if f.endswith('.bak'):
-                        filepath = os.path.join(self.backup_dir, f)
-                        backups.append((filepath, os.path.getctime(filepath)))
+                        filepath = self.backup_dir / f
+                        backups.append((filepath, filepath.stat().st_ctime))
                 
                 backups.sort(key=lambda x: x[1])
                 
