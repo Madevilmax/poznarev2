@@ -8,6 +8,7 @@ from datetime import datetime
 import threading
 import time
 import copy
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -17,6 +18,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TASKS_FILE = os.path.join(BASE_DIR, 'tasks.json')
 USERS_FILE = os.path.join(BASE_DIR, 'users.json')
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 
 # Блокировки для потокобезопасности
 file_lock = threading.Lock()
@@ -73,6 +75,23 @@ class DataManager:
 
 # Инициализация менеджера данных
 data_manager = DataManager()
+
+
+def send_telegram_message(chat_id: str, text: str):
+    """Отправляет сообщение в Telegram, если доступен токен"""
+    if not BOT_TOKEN:
+        logging.warning("TELEGRAM_BOT_TOKEN не задан, уведомления не отправлены")
+        return
+
+    try:
+        response = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": text}
+        )
+        if not response.ok:
+            logging.warning(f"Не удалось отправить уведомление в Telegram: {response.text}")
+    except Exception as e:
+        logging.error(f"Ошибка отправки уведомления в Telegram: {e}")
 
 def is_task_overdue(deadline_str):
     """Проверяет, просрочена ли задача"""
@@ -180,6 +199,20 @@ def create_task():
         # Сохраняем ВСЕ задачи ОДНИМ ЗАПРОСОМ
         if data_manager.save_data_to_file(tasks_data, TASKS_FILE):
             logging.info(f"✅ Создано {len(created_tasks)} задач через веб-интерфейс")
+
+            config_data = data_manager.load_data_from_file(CONFIG_FILE, {"notifications": {"task_created": True}})
+            if config_data.get("notifications", {}).get("task_created", True):
+                group_id = str(task_data.get('group_id', ''))
+                if group_id:
+                    assigned_list = assigned_to if isinstance(assigned_to, list) else [assigned_to]
+                    assigned_display = ", ".join(user for user in assigned_list if user)
+                    message = (
+                        "🎯 Новая задача создана через веб!\n\n"
+                        f"👥 Исполнители: {assigned_display}\n"
+                        f"📝 Задача: {task_data.get('task_text', '')}\n"
+                        f"⏰ Срок: {task_data.get('deadline', '')}"
+                    )
+                    send_telegram_message(group_id, message)
             return jsonify({"success": True, "tasks": created_tasks})
         else:
             return jsonify({"success": False, "error": "Ошибка сохранения"}), 500
