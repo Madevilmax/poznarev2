@@ -149,6 +149,12 @@ def create_task():
     """Создать новую задачу"""
     try:
         task_data = request.json
+
+        assigned_by = task_data.get('assigned_by')
+        if not assigned_by:
+            return jsonify({"success": False, "error": "Выберите назначившего администратора"}), 400
+
+        skip_notification = bool(task_data.get('skip_notification', False))
         
         # Загружаем текущие задачи ОДИН РАЗ
         tasks_data = data_manager.load_data_from_file(TASKS_FILE, {"tasks": []})
@@ -165,13 +171,14 @@ def create_task():
                 new_task = {
                     "id": new_task_id,  # Уникальный ID для каждой задачи
                     "assigned_to": user,
-                    "assigned_by": task_data.get('assigned_by', 'web_user'),
+                    "assigned_by": assigned_by,
                     "task_text": task_data.get('task_text'),
                     "deadline": task_data.get('deadline'),
                     "status": "active",
                     "created_at": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
                     "completed_at": "",
                     "group_id": task_data.get('group_id', 'web'),
+                    "initiator": task_data.get('initiator', assigned_by),
                 }
                 tasks_data["tasks"].append(new_task)
                 created_tasks.append(new_task)
@@ -185,13 +192,14 @@ def create_task():
             new_task = {
                 "id": new_task_id,
                 "assigned_to": assigned_to,
-                "assigned_by": task_data.get('assigned_by', 'web_user'),
+                "assigned_by": assigned_by,
                 "task_text": task_data.get('task_text'),
                 "deadline": task_data.get('deadline'),
                 "status": "active",
                 "created_at": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
                 "completed_at": "",
                 "group_id": task_data.get('group_id', 'web'),
+                "initiator": task_data.get('initiator', assigned_by),
             }
             tasks_data["tasks"].append(new_task)
             created_tasks.append(new_task)
@@ -201,7 +209,8 @@ def create_task():
             logging.info(f"✅ Создано {len(created_tasks)} задач через веб-интерфейс")
 
             config_data = data_manager.load_data_from_file(CONFIG_FILE, {"notifications": {"task_created": True}})
-            if config_data.get("notifications", {}).get("task_created", True):
+            if (config_data.get("notifications", {}).get("task_created", True)
+                    and not skip_notification):
                 group_id = str(task_data.get('group_id', ''))
                 if group_id:
                     assigned_list = assigned_to if isinstance(assigned_to, list) else [assigned_to]
@@ -210,7 +219,8 @@ def create_task():
                         "🎯 Новая задача создана через веб!\n\n"
                         f"👥 Исполнители: {assigned_display}\n"
                         f"📝 Задача: {task_data.get('task_text', '')}\n"
-                        f"⏰ Срок: {task_data.get('deadline', '')}"
+                        f"⏰ Срок: {task_data.get('deadline', '')}\n"
+                        f"👑 Назначил: {assigned_by}"
                     )
                     send_telegram_message(group_id, message)
             return jsonify({"success": True, "tasks": created_tasks})
