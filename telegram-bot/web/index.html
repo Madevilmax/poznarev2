@@ -445,6 +445,18 @@
         label2.innerHTML = `<input type="checkbox" value="${u.username}" /> ${u.full_name || u.username}`;
         addList.appendChild(label2);
       });
+
+      return filtered;
+    }
+
+    function dateValue(val) {
+      if (!val) return Number.MAX_SAFE_INTEGER;
+      const parts = val.includes('-') ? val.split('-') : val.split('.');
+      if (parts.length === 3) {
+        const [y1, m1, d1] = parts[0].length === 4 ? parts : [parts[2], parts[1], parts[0]];
+        return new Date(`${y1}-${m1}-${d1}`).getTime();
+      }
+      return Number.MAX_SAFE_INTEGER;
     }
 
     function renderGroupsForm() {
