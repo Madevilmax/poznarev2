@@ -4,47 +4,10 @@ from datetime import datetime
 from typing import List, Optional
 
 from db.database import get_connection
-from models import Task, TaskAddExecutors, TaskGroup, TaskGroupUpdate
-
-DB_DATE_FORMAT = "%d.%m.%Y"
-DB_DATETIME_FORMAT = "%d.%m.%Y %H:%M:%S"
-ISO_DATE_LENGTH = 10
+from models import Task, TaskGroup, TaskGroupUpdate
 
 
 class TasksRepository:
-    @staticmethod
-    def _iso_to_db_date(date_str: str) -> str:
-        try:
-            if len(date_str.strip()) > ISO_DATE_LENGTH:
-                return datetime.fromisoformat(date_str).strftime(DB_DATE_FORMAT)
-            return datetime.strptime(date_str, "%Y-%m-%d").strftime(DB_DATE_FORMAT)
-        except Exception:
-            return date_str
-
-    @staticmethod
-    def _db_to_iso_date(date_str: str) -> str:
-        for fmt in (DB_DATETIME_FORMAT, DB_DATE_FORMAT):
-            try:
-                dt = datetime.strptime(date_str, fmt)
-                return dt.date().isoformat()
-            except ValueError:
-                continue
-        return date_str
-
-    @staticmethod
-    def _db_to_iso_datetime(date_str: str) -> str:
-        for fmt in (DB_DATETIME_FORMAT, DB_DATE_FORMAT):
-            try:
-                dt = datetime.strptime(date_str, fmt)
-                return dt.isoformat(sep=" ")
-            except ValueError:
-                continue
-        return date_str
-
-    @staticmethod
-    def _now_db_datetime() -> str:
-        return datetime.now().strftime(DB_DATETIME_FORMAT)
-
     def get_next_group_task_id(self, connection: Optional[sqlite3.Connection] = None) -> int:
         own_connection = connection is None
         conn = connection or get_connection()
@@ -68,16 +31,15 @@ class TasksRepository:
     ) -> List[Task]:
         conn = get_connection()
         cursor = conn.cursor()
-        now = self._now_db_datetime()
+        now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         try:
             group_task_id = self.get_next_group_task_id(conn)
-            db_deadline = self._iso_to_db_date(deadline)
             cursor.execute(
                 """
                 INSERT INTO task_groups (group_task_id, task_text, deadline, group_id, created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (group_task_id, task_text, db_deadline, group_id, now),
+                (group_task_id, task_text, deadline, group_id, now),
             )
 
             tasks: List[Task] = []
@@ -98,7 +60,7 @@ class TasksRepository:
                         assigned_to=executor,
                         assigned_by=assigned_by,
                         status="active",
-                        created_at=self._db_to_iso_datetime(now),
+                        created_at=now,
                         completed_at="",
                     )
                 )
@@ -116,7 +78,7 @@ class TasksRepository:
     ) -> List[Task]:
         conn = get_connection()
         cursor = conn.cursor()
-        now = self._now_db_datetime()
+        now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         try:
             cursor.execute("SELECT 1 FROM task_groups WHERE group_task_id = ?", (group_task_id,))
             if cursor.fetchone() is None:
@@ -140,7 +102,7 @@ class TasksRepository:
                         assigned_to=executor,
                         assigned_by=assigned_by,
                         status="active",
-                        created_at=self._db_to_iso_datetime(now),
+                        created_at=now,
                         completed_at="",
                     )
                 )
@@ -159,10 +121,8 @@ class TasksRepository:
         try:
             cursor.execute(
                 """
-                SELECT t.id, t.group_task_id, t.assigned_to, t.assigned_by, t.status, t.created_at, t.completed_at,
-                       tg.task_text, tg.deadline, tg.group_id
-                FROM tasks t
-                LEFT JOIN task_groups tg ON tg.group_task_id = t.group_task_id
+                SELECT id, group_task_id, assigned_to, assigned_by, status, created_at, completed_at
+                FROM tasks
                 """
             )
             rows = cursor.fetchall()
@@ -179,11 +139,9 @@ class TasksRepository:
         try:
             cursor.execute(
                 """
-                SELECT t.id, t.group_task_id, t.assigned_to, t.assigned_by, t.status, t.created_at, t.completed_at,
-                       tg.task_text, tg.deadline, tg.group_id
-                FROM tasks t
-                LEFT JOIN task_groups tg ON tg.group_task_id = t.group_task_id
-                WHERE t.group_task_id = ?
+                SELECT id, group_task_id, assigned_to, assigned_by, status, created_at, completed_at
+                FROM tasks
+                WHERE group_task_id = ?
                 """,
                 (group_task_id,),
             )
@@ -201,11 +159,9 @@ class TasksRepository:
         try:
             cursor.execute(
                 """
-                SELECT t.id, t.group_task_id, t.assigned_to, t.assigned_by, t.status, t.created_at, t.completed_at,
-                       tg.task_text, tg.deadline, tg.group_id
-                FROM tasks t
-                LEFT JOIN task_groups tg ON tg.group_task_id = t.group_task_id
-                WHERE t.id = ?
+                SELECT id, group_task_id, assigned_to, assigned_by, status, created_at, completed_at
+                FROM tasks
+                WHERE id = ?
                 """,
                 (task_id,),
             )
@@ -228,7 +184,7 @@ class TasksRepository:
                 values.append(task_group_update.task_text)
             if task_group_update.deadline is not None:
                 fields.append("deadline = ?")
-                values.append(self._iso_to_db_date(task_group_update.deadline))
+                values.append(task_group_update.deadline)
             if task_group_update.group_id is not None:
                 fields.append("group_id = ?")
                 values.append(task_group_update.group_id)
@@ -257,9 +213,9 @@ class TasksRepository:
             return TaskGroup(
                 group_task_id=row[0],
                 task_text=row[1],
-                deadline=self._db_to_iso_date(row[2]),
+                deadline=row[2],
                 group_id=row[3],
-                created_at=self._db_to_iso_datetime(row[4]),
+                created_at=row[4],
             )
         except Exception:
             conn.rollback()
@@ -271,7 +227,7 @@ class TasksRepository:
     def update_task_status(self, task_id: int, new_status: str) -> Task:
         conn = get_connection()
         cursor = conn.cursor()
-        now = self._now_db_datetime()
+        now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         completed_at = now if new_status == "completed" else ""
         try:
             cursor.execute(
@@ -329,79 +285,6 @@ class TasksRepository:
             assigned_to=row[2],
             assigned_by=row[3],
             status=row[4],
-            created_at=TasksRepository._db_to_iso_datetime(row[5]),
-            completed_at=TasksRepository._db_to_iso_datetime(row[6]) if row[6] else "",
-            task_text=row[7] if len(row) > 7 else None,
-            deadline=TasksRepository._db_to_iso_date(row[8]) if len(row) > 8 and row[8] else None,
-            group_id=row[9] if len(row) > 9 else None,
+            created_at=row[5],
+            completed_at=row[6],
         )
-
-    def get_task_groups_with_tasks(self) -> List[TaskGroup]:
-        conn = get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "SELECT group_task_id, task_text, deadline, group_id, created_at FROM task_groups"
-            )
-            groups_rows = cursor.fetchall()
-            tasks = self.get_all_tasks()
-            tasks_map: dict[int, List[Task]] = {}
-            for task in tasks:
-                tasks_map.setdefault(task.group_task_id, []).append(task)
-            result: List[TaskGroup] = []
-            for row in groups_rows:
-                group_id_val = row[0]
-                result.append(
-                    TaskGroup(
-                        group_task_id=row[0],
-                        task_text=row[1],
-                        deadline=self._db_to_iso_date(row[2]),
-                        group_id=row[3],
-                        created_at=self._db_to_iso_datetime(row[4]),
-                        executors=tasks_map.get(group_id_val, []),
-                    )
-                )
-            return result
-        except Exception:
-            logging.exception("Failed to fetch task groups with executors")
-            raise
-        finally:
-            conn.close()
-
-    def replace_executors(self, payload: TaskAddExecutors) -> List[Task]:
-        conn = get_connection()
-        cursor = conn.cursor()
-        now = self._now_db_datetime()
-        try:
-            cursor.execute("SELECT 1 FROM task_groups WHERE group_task_id = ?", (payload.group_task_id,))
-            if cursor.fetchone() is None:
-                raise ValueError(f"Task group {payload.group_task_id} does not exist")
-            cursor.execute("DELETE FROM tasks WHERE group_task_id = ?", (payload.group_task_id,))
-            tasks: List[Task] = []
-            for executor in payload.assigned_to:
-                cursor.execute(
-                    """
-                    INSERT INTO tasks (group_task_id, assigned_to, assigned_by, status, created_at, completed_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (payload.group_task_id, executor, payload.assigned_by, "active", now, ""),
-                )
-                tasks.append(
-                    Task(
-                        id=cursor.lastrowid,
-                        group_task_id=payload.group_task_id,
-                        assigned_to=executor,
-                        assigned_by=payload.assigned_by,
-                        status="active",
-                        created_at=self._db_to_iso_datetime(now),
-                        completed_at="",
-                    )
-                )
-            conn.commit()
-            return tasks
-        except Exception:
-            conn.rollback()
-            logging.exception("Failed to replace executors for group %s", payload.group_task_id)
-            raise
-        finally:
-            conn.close()

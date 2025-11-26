@@ -5,22 +5,8 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from db.database import init_db
-from models import (
-    Config,
-    Group,
-    Stats,
-    TaskAddExecutors,
-    TaskCreate,
-    TaskGroup,
-    TaskGroupUpdate,
-    TaskStatusUpdate,
-    User,
-)
-from repositories.config_repository import ConfigRepository
-from repositories.groups_repository import GroupsRepository
-from repositories.stats_repository import StatsRepository
+from models import TaskAddExecutors, TaskCreate, TaskGroupUpdate, TaskStatusUpdate
 from repositories.tasks_repository import TasksRepository
-from repositories.users_repository import UsersRepository
 
 
 class GroupOperationRequest(TaskGroupUpdate):
@@ -37,10 +23,6 @@ app.add_middleware(
 )
 
 repository = TasksRepository()
-users_repo = UsersRepository()
-groups_repo = GroupsRepository()
-config_repo = ConfigRepository()
-stats_repo = StatsRepository()
 
 
 @app.on_event("startup")
@@ -51,69 +33,7 @@ def startup_event() -> None:
 @app.get("/api/tasks")
 def get_tasks() -> dict:
     tasks = repository.get_all_tasks()
-    groups = repository.get_task_groups_with_tasks()
-    return {
-        "tasks": [t.model_dump() for t in tasks],
-        "groups": [g.model_dump() for g in groups],
-    }
-
-
-@app.get("/api/users")
-def get_users() -> dict:
-    users = users_repo.get_all_users()
-    return {"users": [u.model_dump() for u in users]}
-
-
-class UserPayload(User):
-    groups: list[str] = []
-
-
-@app.post("/api/users")
-def create_or_update_user(payload: UserPayload) -> dict:
-    user = users_repo.upsert_user(payload.username, payload.full_name, payload.groups)
-    return {"success": True, "user": user}
-
-
-@app.put("/api/users/{username}")
-def update_user(username: str, payload: UserPayload) -> dict:
-    try:
-        user = users_repo.update_user(username, payload.full_name, payload.groups)
-        return {"success": True, "user": user}
-    except ValueError as exc:
-        logging.exception("User %s not found", username)
-        raise HTTPException(status_code=404, detail=str(exc))
-
-
-@app.get("/api/groups")
-def get_groups() -> dict:
-    groups = groups_repo.get_all_groups()
-    return {"groups": [g.model_dump() for g in groups]}
-
-
-@app.post("/api/groups")
-def create_or_update_group(group: Group) -> dict:
-    saved = groups_repo.create_or_update_group(group.id, group.name)
-    return {"success": True, "group": saved}
-
-
-@app.get("/api/config")
-def get_config() -> Config:
-    return config_repo.get_config()
-
-
-class ConfigPayload(Config):
-    pass
-
-
-@app.post("/api/config")
-def set_config(payload: ConfigPayload) -> Config:
-    cfg = Config(**payload.model_dump())
-    return config_repo.set_config(cfg)
-
-
-@app.get("/api/stats")
-def get_stats() -> Stats:
-    return stats_repo.get_stats()
+    return {"tasks": tasks}
 
 
 @app.post("/api/tasks")
@@ -121,7 +41,7 @@ def create_or_add_tasks(
     payload: Union[TaskCreate, TaskAddExecutors] = Body(...),
 ) -> dict:
     try:
-        if isinstance(payload, TaskCreate) or getattr(payload, "group_task_id", None) is None:
+        if isinstance(payload, TaskCreate):
             tasks = repository.create_task_group(
                 payload.task_text,
                 payload.deadline,
@@ -137,46 +57,12 @@ def create_or_add_tasks(
                 payload.assigned_by,
             )
             group_task_id = payload.group_task_id
-        return {"success": True, "group_task_id": group_task_id, "tasks": [t.model_dump() for t in tasks]}
+        return {"success": True, "group_task_id": group_task_id, "tasks": tasks}
     except ValueError as exc:
         logging.exception("Invalid request for creating or adding tasks")
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception:
         logging.exception("Failed to process task creation or executor addition")
-        raise
-
-
-@app.post("/api/tasks/executors")
-def add_executors(payload: TaskAddExecutors) -> dict:
-    try:
-        tasks = repository.add_executors_to_group(
-            payload.group_task_id, payload.assigned_to, payload.assigned_by
-        )
-        return {"success": True, "group_task_id": payload.group_task_id, "tasks": [t.model_dump() for t in tasks]}
-    except ValueError as exc:
-        logging.exception("Group not found while adding executors")
-        raise HTTPException(status_code=404, detail=str(exc))
-    except Exception:
-        logging.exception("Failed to add executors via endpoint")
-        raise
-
-
-class ExecutorsReplacePayload(TaskAddExecutors):
-    pass
-
-
-@app.put("/api/tasks/{group_task_id}/executors")
-def replace_executors(group_task_id: int, payload: ExecutorsReplacePayload) -> dict:
-    try:
-        if group_task_id != payload.group_task_id:
-            raise ValueError("group_task_id mismatch")
-        tasks = repository.replace_executors(payload)
-        return {"success": True, "group_task_id": group_task_id, "tasks": [t.model_dump() for t in tasks]}
-    except ValueError as exc:
-        logging.exception("Failed to replace executors for group %s", group_task_id)
-        raise HTTPException(status_code=404, detail=str(exc))
-    except Exception:
-        logging.exception("Unexpected error replacing executors")
         raise
 
 

@@ -53,11 +53,6 @@ class ManageDeadlineState(StatesGroup):
     waiting_deadline = State()
 
 
-class ManageExecutorsState(StatesGroup):
-    waiting_add = State()
-    waiting_replace = State()
-
-
 DEFAULT_CONFIG: Dict[str, object] = {
     "group_chat_ids": [],
     "admins": [],
@@ -103,28 +98,6 @@ def save_config(config: Dict[str, object]) -> None:
 
 
 config: Dict[str, object] = load_config()
-
-
-async def fetch_notifications_config() -> Dict[str, bool]:
-    try:
-        async with httpx.AsyncClient(base_url=BASE_API_URL, timeout=10.0) as client:
-            response = await client.get("/api/config")
-            response.raise_for_status()
-            return response.json()
-    except Exception as exc:
-        logger.error("Failed to fetch remote config: %s", exc)
-        return config.get("notifications", DEFAULT_CONFIG["notifications"].copy())
-
-
-async def update_notifications_config(settings: Dict[str, bool]) -> Dict[str, bool]:
-    try:
-        async with httpx.AsyncClient(base_url=BASE_API_URL, timeout=10.0) as client:
-            response = await client.post("/api/config", json=settings)
-            response.raise_for_status()
-            return response.json()
-    except Exception as exc:
-        logger.error("Failed to update remote config: %s", exc)
-        raise RuntimeError("Не удалось сохранить настройки уведомлений") from exc
 
 
 async def get_all_tasks() -> List[dict]:
@@ -173,38 +146,12 @@ async def add_executors_via_api(
     }
     try:
         async with httpx.AsyncClient(base_url=BASE_API_URL, timeout=15.0) as client:
-            response = await client.post("/api/tasks/executors", json=payload)
+            response = await client.post("/api/tasks", json=payload)
             response.raise_for_status()
             return response.json()
     except Exception as exc:
         logger.error("Failed to add executors: %s", exc)
         raise RuntimeError("Не удалось добавить исполнителей") from exc
-
-
-async def replace_executors_via_api(
-    group_task_id: int, assigned_to: List[str], assigned_by: str
-) -> dict:
-    payload = {
-        "group_task_id": group_task_id,
-        "assigned_to": assigned_to,
-        "assigned_by": assigned_by,
-    }
-    try:
-        async with httpx.AsyncClient(base_url=BASE_API_URL, timeout=15.0) as client:
-            response = await client.put(f"/api/tasks/{group_task_id}/executors", json=payload)
-            response.raise_for_status()
-            return response.json()
-    except Exception as exc:
-        logger.error("Failed to replace executors for group %s: %s", group_task_id, exc)
-        raise RuntimeError("Не удалось обновить исполнителей") from exc
-
-
-async def fetch_task_by_id(task_id: int) -> Optional[dict]:
-    tasks = await get_all_tasks()
-    for task in tasks:
-        if task.get("id") == task_id:
-            return task
-    return None
 
 
 async def update_task_status_via_api(task_id: int, status: str) -> dict:
@@ -609,25 +556,14 @@ async def cb_choose_group(callback: types.CallbackQuery, state: FSMContext) -> N
 def deadline_from_choice(choice: str) -> str:
     today = datetime.date.today()
     if choice == "today":
-        return today.strftime("%Y-%m-%d")
+        return today.strftime("%d.%m.%Y")
     if choice == "tomorrow":
-        return (today + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        return (today + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
     if choice == "3days":
-        return (today + datetime.timedelta(days=3)).strftime("%Y-%m-%d")
+        return (today + datetime.timedelta(days=3)).strftime("%d.%m.%Y")
     if choice == "week":
-        return (today + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-    return today.strftime("%Y-%m-%d")
-
-
-def parse_executors_text(text: str) -> List[str]:
-    raw_parts = [p.strip() for p in text.replace("\n", ",").split(",")]
-    cleaned = []
-    for part in raw_parts:
-        if not part:
-            continue
-        handle = part if part.startswith("@") else f"@{part}"
-        cleaned.append(handle)
-    return list(dict.fromkeys(cleaned))
+        return (today + datetime.timedelta(days=7)).strftime("%d.%m.%Y")
+    return today.strftime("%d.%m.%Y")
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("deadline:"))
@@ -636,7 +572,7 @@ async def cb_deadline_choice(callback: types.CallbackQuery, state: FSMContext) -
     if choice == "custom":
         await state.set_state(AdminCreateTask.custom_deadline)
         await callback.message.edit_text(
-            "Введите дату в формате ГГГГ-ММ-ДД",
+            "Введите дату в формате ДД.ММ.ГГГГ",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Отмена", callback_data="exec:cancel")]]),
         )
         await callback.answer()
@@ -918,24 +854,15 @@ async def cb_select_task(callback: types.CallbackQuery, state: FSMContext) -> No
         await callback.answer()
         return
     if action == "reassign":
-        task = await fetch_task_by_id(task_id)
-        if not task:
-            await callback.answer("Задача не найдена", show_alert=True)
-            return
-        await state.update_data(group_task_id=task.get("group_task_id"))
-        await state.set_state(ManageExecutorsState.waiting_replace)
-        await callback.message.edit_text(
-            "Отправьте новый список исполнителей через запятую (формат: @user1, @user2)",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[[InlineKeyboardButton(text="❌ Отмена", callback_data="admin:cancel")]]
-            ),
-        )
-        await callback.answer()
+        try:
+            await callback.answer("Для переназначения добавьте новых исполнителей через API группы", show_alert=True)
+        except RuntimeError:
+            pass
         return
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("admin_task:"))
-async def cb_admin_task_actions(callback: types.CallbackQuery, state: FSMContext) -> None:
+async def cb_admin_task_actions(callback: types.CallbackQuery) -> None:
     _, action, task_id_str = callback.data.split(":")
     task_id = int(task_id_str)
     try:
@@ -955,26 +882,8 @@ async def cb_admin_task_actions(callback: types.CallbackQuery, state: FSMContext
             await callback.message.answer("Выберите новый срок", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
             await callback.answer()
             return
-        elif action in {"reassign", "add_executor"}:
-            task = await fetch_task_by_id(task_id)
-            if not task:
-                await callback.answer("Задача не найдена", show_alert=True)
-                return
-            await state.update_data(group_task_id=task.get("group_task_id"))
-            next_state = (
-                ManageExecutorsState.waiting_replace
-                if action == "reassign"
-                else ManageExecutorsState.waiting_add
-            )
-            await state.set_state(next_state)
-            prompt = "Отправьте полный список исполнителей для замены (формат: @user1, @user2)" if action == "reassign" else "Отправьте исполнителей для добавления через запятую"
-            await callback.message.answer(
-                prompt,
-                reply_markup=InlineKeyboardMarkup(
-                    inline_keyboard=[[InlineKeyboardButton(text="❌ Отмена", callback_data="admin:cancel")]]
-                ),
-            )
-            await callback.answer()
+        elif action == "reassign":
+            await callback.answer("Для переназначения создайте копии задачи на новых исполнителей", show_alert=True)
             return
         elif action == "delete":
             await delete_task_via_api(task_id)
@@ -1035,49 +944,9 @@ async def msg_new_task_text(message: types.Message, state: FSMContext) -> None:
         await message.answer(str(exc))
 
 
-@router.message(ManageExecutorsState.waiting_replace)
-async def msg_replace_executors(message: types.Message, state: FSMContext) -> None:
-    data = await state.get_data()
-    group_task_id = data.get("group_task_id")
-    await state.clear()
-    if not group_task_id:
-        await message.answer("Группа не выбрана")
-        return
-    executors = parse_executors_text(message.text)
-    if not executors:
-        await message.answer("Укажите исполнителей через запятую")
-        return
-    assigned_by = f"@{message.from_user.username}" if message.from_user.username else "@unknown"
-    try:
-        await replace_executors_via_api(group_task_id, executors, assigned_by)
-        await message.answer("Исполнители заменены")
-    except RuntimeError as exc:
-        await message.answer(str(exc))
-
-
-@router.message(ManageExecutorsState.waiting_add)
-async def msg_add_executors(message: types.Message, state: FSMContext) -> None:
-    data = await state.get_data()
-    group_task_id = data.get("group_task_id")
-    await state.clear()
-    if not group_task_id:
-        await message.answer("Группа не выбрана")
-        return
-    executors = parse_executors_text(message.text)
-    if not executors:
-        await message.answer("Укажите исполнителей через запятую")
-        return
-    assigned_by = f"@{message.from_user.username}" if message.from_user.username else "@unknown"
-    try:
-        await add_executors_via_api(group_task_id, executors, assigned_by)
-        await message.answer("Исполнители добавлены")
-    except RuntimeError as exc:
-        await message.answer(str(exc))
-
-
 @router.callback_query(lambda c: c.data == "admin:notify")
 async def cb_notify(callback: types.CallbackQuery) -> None:
-    settings = await fetch_notifications_config()
+    settings = config.get("notifications", DEFAULT_CONFIG["notifications"])
     rows = [
         [InlineKeyboardButton(text=f"{'🔔' if settings.get('task_created') else '🔕'} Создание задач", callback_data="notify:task_created")],
         [InlineKeyboardButton(text=f"{'✅' if settings.get('task_completed') else '❌'} Завершение задач", callback_data="notify:task_completed")],
@@ -1092,13 +961,9 @@ async def cb_notify(callback: types.CallbackQuery) -> None:
 @router.callback_query(lambda c: c.data and c.data.startswith("notify:"))
 async def cb_notify_toggle(callback: types.CallbackQuery) -> None:
     _, key = callback.data.split(":")
-    settings = await fetch_notifications_config()
+    settings = config.setdefault("notifications", DEFAULT_CONFIG["notifications"].copy())
     settings[key] = not settings.get(key, True)
-    try:
-        await update_notifications_config(settings)
-    except RuntimeError as exc:
-        await callback.answer(str(exc), show_alert=True)
-        return
+    save_config(config)
     await cb_notify(callback)
 
 

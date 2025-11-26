@@ -118,9 +118,7 @@
     .progress { font-weight: 600; }
     .overdue { color: var(--danger); font-weight: 600; }
     .task-users { padding: 10px 14px; border-top: 1px solid var(--border); }
-    .user-row { display: grid; grid-template-columns: 1.5fr 0.8fr 0.9fr 0.9fr auto; align-items: center; gap: 8px; padding: 6px 0; }
-    .user-row.header { font-weight: 700; color: #111827; }
-    .user-row .muted { font-size: 12px; }
+    .user-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; }
     .user-actions { display: flex; gap: 6px; }
     .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
     .notification { padding: 10px; border-radius: 8px; margin-top: 8px; }
@@ -158,7 +156,7 @@
 </head>
 <body>
   <header>
-    <h1>Task Manager Admin Panel</h1>
+    <h1>Task Manager</h1>
     <div class="flex">
       <button class="btn" onclick="refreshAll()">🔄 Обновить данные</button>
     </div>
@@ -186,12 +184,6 @@
           </div>
           <div class="form-group">
             <label for="deadline">Дедлайн</label>
-            <div class="flex" style="gap:6px; flex-wrap:wrap; margin-bottom:8px;">
-              <button class="btn ghost" onclick="setQuickDeadline(0); return false;">⏰ Сегодня</button>
-              <button class="btn ghost" onclick="setQuickDeadline(1); return false;">⏰ Завтра</button>
-              <button class="btn ghost" onclick="setQuickDeadline(3); return false;">⏰ Через 3 дня</button>
-              <button class="btn ghost" onclick="setQuickDeadline(7); return false;">⏰ Через неделю</button>
-            </div>
             <input type="date" id="deadline" />
           </div>
           <button class="btn" onclick="createTask(event)">Создать задачу</button>
@@ -209,9 +201,8 @@
             <input type="text" id="userFullName" placeholder="Имя Фамилия" />
           </div>
           <div class="form-group">
-            <label>Группы</label>
-            <div class="checkbox-list" id="userGroupCheckboxes"></div>
-            <div class="muted" id="noUserGroupsMsg" style="display:none;">Группы не найдены</div>
+            <label for="userGroups">Группы (через запятую)</label>
+            <input type="text" id="userGroups" placeholder="group1, group2" />
           </div>
           <button class="btn secondary" onclick="saveUser(event)">Сохранить пользователя</button>
           <div id="userFormMsg"></div>
@@ -248,10 +239,6 @@
           <div>
             <label for="initiatorFilter">Инициатор</label>
             <select id="initiatorFilter" onchange="renderTasks()"></select>
-          </div>
-          <div>
-            <label for="groupFilter">Группа</label>
-            <select id="groupFilter" onchange="renderTasks()"></select>
           </div>
           <div>
             <label for="sortFilter">Сортировка</label>
@@ -325,7 +312,6 @@
   <script>
     const API_BASE = 'http://localhost:8000/api';
     let tasks = [];
-    let taskGroups = [];
     let users = [];
     let stats = {};
     let config = {};
@@ -341,14 +327,6 @@
       if (!container) return;
       if (!message) { container.innerHTML = ''; return; }
       container.innerHTML = `<div class="notification ${type}">${message}</div>`;
-    }
-
-    function setQuickDeadline(daysFromNow) {
-      const date = new Date();
-      date.setDate(date.getDate() + daysFromNow);
-      const iso = date.toISOString().slice(0, 10);
-      const deadlineInput = document.getElementById('deadline');
-      if (deadlineInput) deadlineInput.value = iso;
     }
 
     async function fetchJson(path, options = {}) {
@@ -368,7 +346,6 @@
       try {
         const data = await fetchJson('/tasks');
         tasks = data.tasks || [];
-        taskGroups = (data.groups || []).map(g => ({ ...g, tasks: g.executors || [] }));
         if (!silent) renderTasks();
       } catch (err) {
         notify('tasksContainer', 'Ошибка загрузки задач', 'error');
@@ -395,7 +372,6 @@
         const data = await fetchJson('/groups');
         groups = data.groups || [];
         renderGroupsForm();
-        renderFilters();
       } catch (err) {
         groups = [];
         renderGroupsForm();
@@ -432,8 +408,8 @@
         { label: 'Активные', value: stats.active_tasks },
         { label: 'Выполненные', value: stats.completed_tasks },
         { label: 'Просроченные', value: stats.overdue_tasks },
-        { label: 'Пользователи', value: stats.total_users },
-        { label: 'Группы', value: stats.total_groups },
+        { label: 'Пользователи', value: stats.users_count },
+        { label: 'Группы', value: stats.groups_count },
       ];
       container.innerHTML = cards.map(c => `
         <div class="card">
@@ -469,46 +445,38 @@
         label2.innerHTML = `<input type="checkbox" value="${u.username}" /> ${u.full_name || u.username}`;
         addList.appendChild(label2);
       });
+
+      return filtered;
+    }
+
+    function dateValue(val) {
+      if (!val) return Number.MAX_SAFE_INTEGER;
+      const parts = val.includes('-') ? val.split('-') : val.split('.');
+      if (parts.length === 3) {
+        const [y1, m1, d1] = parts[0].length === 4 ? parts : [parts[2], parts[1], parts[0]];
+        return new Date(`${y1}-${m1}-${d1}`).getTime();
+      }
+      return Number.MAX_SAFE_INTEGER;
     }
 
     function renderGroupsForm() {
       const container = document.getElementById('groupRadios');
       const noGroups = document.getElementById('noGroupsMsg');
-      const userGroupsBox = document.getElementById('userGroupCheckboxes');
-      const noUserGroupsMsg = document.getElementById('noUserGroupsMsg');
       container.innerHTML = '';
-      const noGroupsFound = !groups.length;
-      if (noGroups) noGroups.style.display = noGroupsFound ? 'block' : 'none';
-      const noneLabel = document.createElement('label');
-      noneLabel.style.display = 'flex';
-      noneLabel.style.alignItems = 'center';
-      noneLabel.style.gap = '6px';
-      noneLabel.innerHTML = `<input type="radio" name="groupRadio" value="" ${noGroupsFound ? 'checked' : ''}/> Без уведомлений`;
-      container.appendChild(noneLabel);
+      if (!groups.length) {
+        noGroups.style.display = 'block';
+        return;
+      }
+      noGroups.style.display = 'none';
       groups.forEach((g, idx) => {
+        const id = `g-${idx}`;
         const label = document.createElement('label');
         label.style.display = 'flex';
         label.style.alignItems = 'center';
         label.style.gap = '6px';
-        label.innerHTML = `<input type="radio" name="groupRadio" value="${g.id}" ${!noGroupsFound && idx===0?'checked':''}/> ${g.name || g.id}`;
+        label.innerHTML = `<input type="radio" name="groupRadio" value="${g.id}" ${idx===0?'checked':''}/> ${g.name || g.id}`;
         container.appendChild(label);
       });
-      if (userGroupsBox) {
-        userGroupsBox.innerHTML = '';
-        if (!groups.length) {
-          if (noUserGroupsMsg) noUserGroupsMsg.style.display = 'block';
-        } else {
-          if (noUserGroupsMsg) noUserGroupsMsg.style.display = 'none';
-          groups.forEach(g => {
-            const label = document.createElement('label');
-            label.style.display = 'flex';
-            label.style.alignItems = 'center';
-            label.style.gap = '6px';
-            label.innerHTML = `<input type="checkbox" value="${g.id}" /> ${g.name || g.id}`;
-            userGroupsBox.appendChild(label);
-          });
-        }
-      }
     }
 
     function renderConfig() {
@@ -531,62 +499,23 @@
       const assignee = document.getElementById('assigneeFilter');
       const assignedBy = document.getElementById('assignedByFilter');
       const initiator = document.getElementById('initiatorFilter');
-      const groupFilter = document.getElementById('groupFilter');
-      const previous = {
-        assignee: assignee?.value || 'all',
-        assignedBy: assignedBy?.value || 'all',
-        initiator: initiator?.value || 'all',
-        group: groupFilter?.value || 'all',
-        status: document.getElementById('statusFilter')?.value || 'all',
-        sort: document.getElementById('sortFilter')?.value || 'newest',
-      };
-      const buildOptions = (values, includeAll = true) => {
-        const opts = includeAll ? ['<option value="all">Все</option>'] : [];
-        opts.push(...Array.from(new Set(values)).map(v => `<option value="${v}">${v}</option>`));
-        return opts.join('');
-      };
-      if (assignee) {
-        assignee.innerHTML = buildOptions(users.map(u => u.username));
-        assignee.value = previous.assignee;
-      }
+      const buildOptions = (values) => ['<option value="all">Все</option>', ...Array.from(new Set(values)).map(v => `<option value="${v}">${v}</option>`)].join('');
+      assignee.innerHTML = buildOptions(users.map(u => u.username));
       const assigners = tasks.map(t => t.assigned_by).filter(Boolean);
-      if (assignedBy) {
-        assignedBy.innerHTML = buildOptions(assigners);
-        assignedBy.value = previous.assignedBy;
-      }
-      if (initiator) {
-        initiator.innerHTML = buildOptions(assigners);
-        initiator.value = previous.initiator;
-      }
-      if (groupFilter) {
-        groupFilter.innerHTML = buildOptions(groups.map(g => g.id));
-        groupFilter.value = previous.group;
-      }
-      if (document.getElementById('statusFilter')) {
-        document.getElementById('statusFilter').value = previous.status;
-      }
-      if (document.getElementById('sortFilter')) {
-        document.getElementById('sortFilter').value = previous.sort;
-      }
+      assignedBy.innerHTML = buildOptions(assigners);
+      initiator.innerHTML = buildOptions(assigners);
     }
 
-    function groupTasksById(list) {
+    function groupTasks(list) {
       const map = new Map();
       list.forEach(t => {
-        const key = String(t.group_task_id || '');
+        const key = `${t.task_text || ''}|${t.deadline || ''}|${t.group_id || ''}`;
         if (!map.has(key)) {
-          map.set(key, { key, group_task_id: t.group_task_id, task_text: t.task_text || 'Без названия', deadline: t.deadline || '', group_id: t.group_id || '', tasks: [] });
+          map.set(key, { key, task_text: t.task_text || 'Без названия', deadline: t.deadline || '', group_id: t.group_id || '', tasks: [] });
         }
         map.get(key).tasks.push(t);
       });
       return Array.from(map.values());
-    }
-
-    function getGroupedTasks() {
-      if (taskGroups.length) {
-        return taskGroups.map(g => ({ ...g, key: String(g.group_task_id), tasks: g.tasks || g.executors || [] }));
-      }
-      return groupTasksById(tasks);
     }
 
     function applyFilters(groupsList) {
@@ -594,7 +523,6 @@
       const assignee = document.getElementById('assigneeFilter').value;
       const assignedBy = document.getElementById('assignedByFilter').value;
       const initiator = document.getElementById('initiatorFilter').value;
-      const groupValue = document.getElementById('groupFilter').value;
       const sort = document.getElementById('sortFilter').value;
       const dateFrom = document.getElementById('dateFrom').value;
       const dateTo = document.getElementById('dateTo').value;
@@ -607,9 +535,8 @@
           const assigneeOk = assignee === 'all' || t.assigned_to === assignee;
           const assignedByOk = assignedBy === 'all' || t.assigned_by === assignedBy;
           const initiatorOk = initiator === 'all' || t.assigned_by === initiator;
-          const groupOk = groupValue === 'all' || t.group_id === groupValue;
           const dateOk = checkDateRange(t.deadline, dateFrom, dateTo);
-          return statusOk && assigneeOk && assignedByOk && initiatorOk && groupOk && dateOk;
+          return statusOk && assigneeOk && assignedByOk && initiatorOk && dateOk;
         });
       });
       filtered = filtered.filter(g => g.tasks.length);
@@ -661,7 +588,7 @@
     function renderTasks() {
       renderFilters();
       const container = document.getElementById('tasksContainer');
-      const grouped = applyFilters(getGroupedTasks());
+      const grouped = applyFilters(groupTasks(tasks));
       if (!grouped.length) {
         container.innerHTML = '<div class="notification error">Нет задач</div>';
         return;
@@ -671,8 +598,7 @@
         const total = g.tasks.length;
         const completed = g.tasks.filter(t => t.status === 'completed').length;
         const overdue = g.tasks.some(t => isTaskOverdue(t.deadline, t.status));
-        const key = g.key || String(g.group_task_id);
-        const isExpanded = expandedGroups.has(key);
+        const isExpanded = expandedGroups.has(g.key);
         const groupEl = document.createElement('div');
         groupEl.className = 'task-group';
         groupEl.innerHTML = `
@@ -687,36 +613,24 @@
               </div>
             </div>
             <div class="flex" style="justify-content:flex-end;">
-              <button class="btn ghost" onclick="toggleGroup('${key}')">${isExpanded ? '🔼' : '🔽'}</button>
-              <button class="btn secondary" onclick="openEditModal('${key}')">✏️ Изменить</button>
-              <button class="btn secondary" onclick="openDeadlineModal('${key}')">⏰ Изменить срок</button>
-              <button class="btn secondary" onclick="openUsersModal('${key}')">👥 Исполнители</button>
+              <button class="btn ghost" onclick="toggleGroup('${g.key}')">${isExpanded ? '🔼' : '🔽'}</button>
+              <button class="btn secondary" onclick="openEditModal('${g.key}')">✏️ Изменить</button>
+              <button class="btn secondary" onclick="openDeadlineModal('${g.key}')">⏰ Изменить срок</button>
+              <button class="btn secondary" onclick="openUsersModal('${g.key}')">👥 Исполнители</button>
             </div>
           </div>
         `;
         if (isExpanded) {
           const usersWrap = document.createElement('div');
           usersWrap.className = 'task-users';
-          usersWrap.innerHTML = `
-            <div class="user-row header">
-              <div>Пользователь</div>
-              <div>Статус</div>
-              <div>Создано</div>
-              <div>Завершено</div>
-              <div>Действия</div>
-            </div>
-          `;
           g.tasks.forEach(t => {
             const row = document.createElement('div');
             row.className = 'user-row';
             row.innerHTML = `
               <div>
-                <div><strong>${t.assigned_to}</strong></div>
-                <div class="muted">Назначил: ${t.assigned_by || '—'}</div>
+                <div><strong>${t.assigned_to}</strong> — ${t.status === 'completed' ? 'Выполнена' : 'Активна'}</div>
+                <div class="muted">Назначил: ${t.assigned_by || '—'}${t.deadline ? ' · Дедлайн: ' + t.deadline : ''}</div>
               </div>
-              <div>${t.status === 'completed' ? 'Выполнена' : 'Активна'}${isTaskOverdue(t.deadline, t.status) ? ' · ⚠️' : ''}</div>
-              <div>${t.created_at || '—'}</div>
-              <div>${t.completed_at || '—'}</div>
               <div class="user-actions">
                 <button class="btn ghost" onclick="toggleStatus(${t.id}, '${t.status}')">${t.status === 'completed' ? '🔄 Вернуть' : '✅ Завершить'}</button>
                 <button class="btn danger" onclick="deleteTask(${t.id})">🗑 Удалить</button>
@@ -766,7 +680,7 @@
       e?.preventDefault();
       const username = document.getElementById('userLogin').value.trim();
       const fullName = document.getElementById('userFullName').value.trim();
-      const groupsVal = Array.from(document.querySelectorAll('#userGroupCheckboxes input:checked')).map(i => i.value);
+      const groupsVal = document.getElementById('userGroups').value.trim();
       if (!username) {
         notify('userFormMsg', 'Укажите @username', 'error');
         return;
@@ -774,12 +688,12 @@
       try {
         await fetchJson('/users', {
           method: 'POST',
-          body: JSON.stringify({ username, full_name: fullName || null, groups: groupsVal }),
+          body: JSON.stringify({ username, full_name: fullName, groups: groupsVal.split(',').map(g => g.trim()).filter(Boolean) }),
         });
         notify('userFormMsg', 'Пользователь сохранён', 'success');
         document.getElementById('userLogin').value = '';
         document.getElementById('userFullName').value = '';
-        document.querySelectorAll('#userGroupCheckboxes input').forEach(i => i.checked = false);
+        document.getElementById('userGroups').value = '';
         await loadUsers();
       } catch (err) {
         notify('userFormMsg', 'Ошибка сохранения', 'error');
@@ -829,7 +743,7 @@
     }
 
     function openEditModal(groupKey) {
-      const group = getGroupedTasks().find(g => String(g.group_task_id) === String(groupKey) || g.key === groupKey);
+      const group = groupTasks(tasks).find(g => g.key === groupKey);
       if (!group) return;
       editContext = { groupKey, taskId: group.tasks[0].id };
       document.getElementById('editText').value = group.task_text || '';
@@ -838,7 +752,7 @@
     }
 
     function openDeadlineModal(groupKey) {
-      const group = getGroupedTasks().find(g => String(g.group_task_id) === String(groupKey) || g.key === groupKey);
+      const group = groupTasks(tasks).find(g => g.key === groupKey);
       if (!group) return;
       deadlineContext = { groupKey, taskId: group.tasks[0].id };
       document.getElementById('newDeadline').value = toDateInput(group.deadline);
@@ -846,9 +760,9 @@
     }
 
     function openUsersModal(groupKey) {
-      const group = getGroupedTasks().find(g => String(g.group_task_id) === String(groupKey) || g.key === groupKey);
+      const group = groupTasks(tasks).find(g => g.key === groupKey);
       if (!group) return;
-      usersContext = { groupKey, taskIds: group.tasks.map(t => t.id), groupTaskId: group.group_task_id };
+      usersContext = { groupKey, taskIds: group.tasks.map(t => t.id) };
       const container = document.getElementById('currentUsers');
       container.innerHTML = group.tasks.map(t => `
         <label style="display:flex;align-items:center;gap:8px;">
@@ -893,12 +807,14 @@
       const toDelete = Array.from(document.querySelectorAll('#currentUsers input:checked')).map(i => Number(i.value));
       const toAdd = Array.from(document.querySelectorAll('#addUserCheckboxes input:checked')).map(i => i.value);
       try {
-        const groupTaskId = usersContext.groupTaskId;
-        const currentGroup = getGroupedTasks().find(g => String(g.group_task_id) === String(groupTaskId));
-        const remainingUsers = (currentGroup?.tasks || []).filter(t => !toDelete.includes(t.id)).map(t => t.assigned_to);
-        const merged = Array.from(new Set([...remainingUsers, ...toAdd]));
-        if (!groupTaskId) throw new Error('Группа не найдена');
-        await fetchJson(`/tasks/${groupTaskId}/executors`, { method: 'PUT', body: JSON.stringify({ group_task_id: groupTaskId, assigned_to: merged, assigned_by: '@web_user' }) });
+        for (const id of toDelete) {
+          await fetchJson(`/tasks/${id}`, { method: 'DELETE' });
+        }
+        const baseTask = tasks.find(t => t.id === usersContext.taskIds[0]);
+        const groupTaskId = baseTask?.group_task_id;
+        if (toAdd.length && groupTaskId) {
+          await fetchJson('/tasks', { method: 'POST', body: JSON.stringify({ group_task_id: groupTaskId, assigned_to: toAdd, assigned_by: '@web_user' }) });
+        }
         closeModal('usersModal');
         await loadTasks(true);
         renderTasks();
