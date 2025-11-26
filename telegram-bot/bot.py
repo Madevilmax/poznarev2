@@ -1428,13 +1428,16 @@ class TaskManagerBot:
                     if not text.startswith('@'):
                         await self.safe_send_message(chat.id, "❌ Username должен начинаться с @. Попробуйте еще раз:", context.bot)
                         return
-                    
-                    new_admin = text
+                    new_admin = self.normalize_username(text)
+                    normalized_new_admin = new_admin.lower()
+
                     config_data = self.get_config()
                     if "admins" not in config_data:
                         config_data["admins"] = []
-                    
-                    if new_admin in config_data["admins"]:
+
+                    normalized_existing = [self.normalize_username(a).lower() for a in config_data.get("admins", [])]
+
+                    if normalized_new_admin in normalized_existing:
                         await self.safe_send_message(chat.id, f"✅ {new_admin} уже администратор", context.bot)
                     else:
                         config_data["admins"].append(new_admin)
@@ -2643,11 +2646,14 @@ class TaskManagerBot:
                 pass
 
     def is_admin(self, username):
-        """Проверка прав администратора"""
+        """Проверка прав администратора с учётом регистра и пробелов"""
+        normalized_username = self.normalize_username(username).lower()
+
         config_data = self.get_config()
-        hardcoded_admins = ["@admin", "@poznarev"]
-        config_admins = config_data.get("admins", [])
-        return username in hardcoded_admins + config_admins
+        hardcoded_admins = [self.normalize_username(x).lower() for x in ["@admin", "@poznarev"]]
+        config_admins = [self.normalize_username(x).lower() for x in config_data.get("admins", [])]
+
+        return normalized_username in hardcoded_admins + config_admins
 
     async def show_all_users(self, update: Update, context: CallbackContext):
         try:
