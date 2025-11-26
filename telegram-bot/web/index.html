@@ -1,0 +1,2050 @@
+    <!-- index.html -->
+    <!DOCTYPE html>
+    <html lang="ru">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Task Manager - Управление задачами отдела</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            :root {
+                --primary: #2563eb;
+                --primary-dark: #1d4ed8;
+                --secondary: #64748b;
+                --success: #10b981;
+                --danger: #ef4444;
+                --warning: #f59e0b;
+                --info: #3b82f6;
+                --light: #f8fafc;
+                --dark: #1e293b;
+                --border: #e2e8f0;
+                --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            }
+
+            body {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+                color: var(--dark);
+                line-height: 1.6;
+            }
+
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+                background: white;
+                border-radius: 16px;
+                box-shadow: var(--shadow);
+                overflow: hidden;
+                min-height: calc(100vh - 40px);
+                display: flex;
+                flex-direction: column;
+            }
+
+            .header {
+                background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+                color: white;
+                padding: 24px;
+                position: relative;
+            }
+
+            .header-content {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+
+            .header h1 {
+                font-size: 1.8rem;
+                font-weight: 700;
+                margin: 0;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .header-actions {
+                display: flex;
+                gap: 12px;
+                align-items: center;
+            }
+
+            .btn {
+                background: rgba(255, 255, 255, 0.2);
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 600;
+                transition: all 0.2s;
+                backdrop-filter: blur(10px);
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .btn:hover {
+                background: rgba(255, 255, 255, 0.3);
+                transform: translateY(-2px);
+            }
+
+            .stats-cards {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 16px;
+                padding: 20px;
+                background: var(--light);
+                border-bottom: 1px solid var(--border);
+            }
+
+            .stat-card {
+                background: white;
+                padding: 20px;
+                border-radius: 12px;
+                text-align: center;
+                box-shadow: var(--shadow);
+                border-top: 4px solid var(--primary);
+                transition: transform 0.2s;
+            }
+
+            .stat-card:hover {
+                transform: translateY(-2px);
+            }
+
+            .stat-card h3 {
+                color: var(--secondary);
+                margin-bottom: 8px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .stat-number {
+                font-size: 2rem;
+                font-weight: 700;
+                color: var(--primary);
+            }
+
+            .main-content {
+                display: grid;
+                grid-template-columns: 400px 1fr;
+                gap: 24px;
+                padding: 24px;
+                flex: 1;
+            }
+
+            .form-section {
+                background: var(--light);
+                padding: 24px;
+                border-radius: 12px;
+                height: fit-content;
+                position: sticky;
+                top: 24px;
+            }
+
+            .section-title {
+                font-size: 1.2rem;
+                margin-bottom: 20px;
+                color: var(--dark);
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .form-group {
+                margin-bottom: 20px;
+            }
+
+            .form-group label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 600;
+                color: var(--dark);
+                font-size: 0.9rem;
+            }
+
+            .form-control {
+                width: 100%;
+                padding: 12px 16px;
+                border: 2px solid var(--border);
+                border-radius: 8px;
+                font-size: 0.9rem;
+                transition: all 0.2s;
+                font-family: inherit;
+                background: white;
+            }
+
+            .form-control:focus {
+                outline: none;
+                border-color: var(--primary);
+                box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            }
+
+            .btn-primary {
+                background: var(--primary);
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 0.9rem;
+                font-weight: 600;
+                transition: all 0.2s;
+                width: 100%;
+            }
+
+            .btn-primary:hover {
+                background: var(--primary-dark);
+                transform: translateY(-2px);
+                box-shadow: var(--shadow);
+            }
+
+            .tasks-section {
+                flex: 1;
+            }
+
+            .filters {
+                display: flex;
+                gap: 16px;
+                margin-bottom: 24px;
+                flex-wrap: wrap;
+                align-items: center;
+                background: white;
+                padding: 20px;
+                border-radius: 12px;
+                box-shadow: var(--shadow);
+            }
+
+            .filter-group {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                flex: 1;
+                min-width: 150px;
+            }
+
+            .filter-group label {
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: var(--dark);
+            }
+
+            .filter-buttons {
+                display: flex;
+                gap: 4px;
+                flex-wrap: wrap;
+            }
+
+            .filter-btn {
+                padding: 8px 16px;
+                border: 2px solid var(--border);
+                background: white;
+                border-radius: 20px;
+                cursor: pointer;
+                transition: all 0.2s;
+                font-size: 0.8rem;
+                font-weight: 500;
+            }
+
+            .filter-btn.active {
+                background: var(--primary);
+                color: white;
+                border-color: var(--primary);
+            }
+
+            .task-list {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                max-height: 600px;
+                overflow-y: auto;
+                padding-right: 8px;
+            }
+
+            .task-group {
+                background: white;
+                border: 2px solid var(--border);
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: var(--shadow);
+                transition: all 0.2s;
+            }
+
+            .task-group:hover {
+                border-color: var(--primary);
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            }
+
+            .task-group.overdue {
+                border-color: var(--danger);
+            }
+
+            .task-group-header {
+                background: #f8fafc;
+                padding: 16px 20px;
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .task-group-info {
+                flex: 1;
+            }
+
+            .task-group-title {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-bottom: 8px;
+                color: var(--dark);
+                line-height: 1.4;
+            }
+
+            .task-group-meta {
+                display: flex;
+                gap: 16px;
+                flex-wrap: wrap;
+                font-size: 0.85rem;
+                color: var(--secondary);
+            }
+
+            .task-group-meta div {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .task-group-actions {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .action-btn {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 0.8rem;
+                font-weight: 600;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+
+            .action-btn:hover {
+                transform: translateY(-1px);
+            }
+
+            .btn-complete {
+                background: var(--success);
+                color: white;
+            }
+
+            .btn-reopen {
+                background: var(--info);
+                color: white;
+            }
+
+            .btn-edit {
+                background: var(--primary);
+                color: white;
+            }
+
+            .btn-deadline {
+                background: var(--warning);
+                color: white;
+            }
+
+            .btn-delete {
+                background: var(--danger);
+                color: white;
+            }
+
+            .task-group-users {
+                padding: 0;
+            }
+
+            .task-user-item {
+                padding: 16px 20px;
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .task-user-item:last-child {
+                border-bottom: none;
+            }
+
+            .task-user-info {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .user-avatar {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                background: var(--primary);
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                font-size: 0.8rem;
+            }
+
+            .user-details {
+                flex: 1;
+            }
+
+            .user-name {
+                font-weight: 600;
+                color: var(--dark);
+                font-size: 0.9rem;
+            }
+
+            .user-status {
+                font-size: 0.8rem;
+                color: var(--secondary);
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+
+            .status-active {
+                color: var(--success);
+            }
+
+            .status-completed {
+                color: var(--info);
+            }
+
+            .task-user-actions {
+                display: flex;
+                gap: 6px;
+            }
+
+            .user-action-btn {
+                padding: 6px 12px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 0.75rem;
+                font-weight: 600;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+
+            .user-action-btn:hover {
+                transform: translateY(-1px);
+            }
+
+            .checkbox-container {
+                max-height: 200px;
+                overflow-y: auto;
+                border: 2px solid var(--border);
+                border-radius: 8px;
+                padding: 12px;
+                background: white;
+            }
+
+            .checkbox-item {
+                display: flex;
+                align-items: center;
+                padding: 8px;
+                margin-bottom: 4px;
+                border-radius: 6px;
+                transition: background-color 0.2s;
+            }
+
+            .checkbox-item:hover {
+                background-color: #f1f5f9;
+            }
+
+            .checkbox-item input {
+                margin-right: 8px;
+                transform: scale(1.1);
+            }
+
+            .selected-users {
+                margin-top: 12px;
+                padding: 12px;
+                background: #f0fdf4;
+                border-radius: 8px;
+                border-left: 4px solid var(--success);
+            }
+
+            .selected-users h4 {
+                margin-bottom: 8px;
+                color: var(--dark);
+                font-size: 0.9rem;
+                font-weight: 600;
+            }
+
+            .selected-user {
+                display: inline-block;
+                background: var(--success);
+                color: white;
+                padding: 4px 8px;
+                border-radius: 12px;
+                font-size: 0.75rem;
+                margin: 2px;
+            }
+
+            .groups-container {
+                max-height: 150px;
+                overflow-y: auto;
+                border: 2px solid var(--border);
+                border-radius: 8px;
+                padding: 12px;
+                background: white;
+            }
+
+            .group-item {
+                padding: 8px;
+                margin-bottom: 4px;
+                border-radius: 6px;
+                background: #f8fafc;
+                border-left: 3px solid var(--primary);
+                display: flex;
+                align-items: center;
+            }
+
+            .group-item input[type="radio"] {
+                margin-right: 8px;
+                transform: scale(1.1);
+            }
+
+            .group-item label {
+                cursor: pointer;
+                flex: 1;
+                margin: 0;
+                font-weight: normal;
+                font-size: 0.85rem;
+            }
+
+            .loading {
+                text-align: center;
+                padding: 40px;
+                color: var(--secondary);
+                font-size: 1rem;
+            }
+
+            .error {
+                text-align: center;
+                padding: 40px;
+                color: var(--danger);
+                font-size: 1rem;
+            }
+
+            .empty-state {
+                text-align: center;
+                padding: 60px 20px;
+                color: var(--secondary);
+            }
+
+            .empty-state-icon {
+                font-size: 3rem;
+                margin-bottom: 16px;
+                opacity: 0.5;
+            }
+
+            .notification {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 16px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 600;
+                z-index: 10000;
+                box-shadow: var(--shadow);
+                animation: slideInRight 0.3s ease-out;
+                max-width: 400px;
+            }
+
+            .notification.success {
+                background: var(--success);
+            }
+
+            .notification.error {
+                background: var(--danger);
+            }
+
+            .notification.info {
+                background: var(--info);
+            }
+
+            .modal {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 1000;
+                justify-content: center;
+                align-items: center;
+                padding: 20px;
+                backdrop-filter: blur(4px);
+            }
+
+            .modal-content {
+                background: white;
+                padding: 32px;
+                border-radius: 16px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                max-width: 500px;
+                width: 100%;
+                max-height: 90vh;
+                overflow-y: auto;
+                animation: scaleIn 0.2s ease-out;
+            }
+
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 24px;
+            }
+
+            .modal-title {
+                font-size: 1.3rem;
+                font-weight: 600;
+                color: var(--dark);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .close-btn {
+                background: none;
+                border: none;
+                font-size: 1.5rem;
+                cursor: pointer;
+                color: var(--secondary);
+                padding: 4px;
+                border-radius: 4px;
+            }
+
+            .close-btn:hover {
+                background: var(--light);
+            }
+
+            .modal-actions {
+                display: flex;
+                gap: 12px;
+                justify-content: flex-end;
+                margin-top: 24px;
+            }
+
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes scaleIn {
+                from {
+                    transform: scale(0.9);
+                    opacity: 0;
+                }
+
+                to {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @media (max-width: 1024px) {
+                .main-content {
+                    grid-template-columns: 1fr;
+                }
+
+                .form-section {
+                    position: static;
+                }
+            }
+
+            @media (max-width: 768px) {
+                body {
+                    padding: 12px;
+                }
+
+                .header-content {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 16px;
+                }
+
+                .header-actions {
+                    width: 100%;
+                    justify-content: space-between;
+                }
+
+                .stats-cards {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+
+                .filters {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+
+                .task-group-header {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+
+                .task-group-actions {
+                    justify-content: flex-start;
+                }
+
+                .task-user-item {
+                    flex-direction: column;
+                    align-items: stretch;
+                    gap: 8px;
+                }
+
+                .task-user-actions {
+                    justify-content: flex-start;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="header-content">
+                    <div>
+                        <h1>📋 Task Manager</h1>
+                        <p>Эффективное управление задачами отдела</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn" onclick="forceRefresh()">
+                            🔄 Обновить данные
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-cards" id="statsContainer">
+                <div class="loading">Загрузка статистики...</div>
+            </div>
+
+            <div class="main-content">
+                <div class="form-section">
+                    <h2 class="section-title">➕ Новая задача</h2>
+                    <form id="taskForm">
+                        <div class="form-group">
+                            <label for="taskText">Описание задачи:</label>
+                            <textarea id="taskText" class="form-control" rows="3" placeholder="Опишите задачу подробно..."
+                                required></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Исполнители:</label>
+                            <div class="checkbox-container" id="usersCheckboxContainer">
+                                <div class="loading">Загрузка пользователей...</div>
+                            </div>
+                            <div class="selected-users" id="selectedUsers" style="display: none;">
+                                <h4>Выбраны исполнители:</h4>
+                                <div id="selectedUsersList"></div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Группа для уведомлений:</label>
+                            <div class="groups-container" id="groupsContainer">
+                                <div class="loading">Загрузка групп...</div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="deadline">Срок выполнения:</label>
+                            <input type="date" id="deadline" class="form-control" required>
+                        </div>
+
+                        <button type="submit" class="btn-primary">
+                            🎯 Создать задачу
+                        </button>
+                    </form>
+                </div>
+
+                <div class="tasks-section">
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label>Статус задач:</label>
+                            <div class="filter-buttons">
+                                <button class="filter-btn active" data-filter="all">Все</button>
+                                <button class="filter-btn" data-filter="active">Активные</button>
+                                <button class="filter-btn" data-filter="completed">Выполненные</button>
+                                <button class="filter-btn" data-filter="overdue">Просроченные</button>
+                            </div>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Сотрудник:</label>
+                            <select id="userFilter" class="form-control">
+                                <option value="all">Все сотрудники</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Сортировка:</label>
+                            <select id="sortFilter" class="form-control">
+                                <option value="newest">Сначала новые</option>
+                                <option value="oldest">Сначала старые</option>
+                                <option value="deadline">По сроку</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="task-list" id="tasksContainer">
+                        <div class="loading">Загрузка задач...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальные окна -->
+        <div class="modal" id="editTaskModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">✏️ Редактирование задачи</div>
+                    <button class="close-btn" onclick="closeEditModal()">&times;</button>
+                </div>
+
+                <form id="editTaskForm">
+                    <input type="hidden" id="editTaskId">
+                    <input type="hidden" id="editTaskScope">
+
+                    <div class="form-group">
+                        <label for="editTaskText">Описание задачи:</label>
+                        <textarea id="editTaskText" class="form-control" rows="3" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editDeadline">Срок выполнения:</label>
+                        <input type="date" id="editDeadline" class="form-control" required>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="action-btn btn-delete" onclick="closeEditModal()">
+                            ❌ Отмена
+                        </button>
+                        <button type="submit" class="action-btn btn-complete">
+                            💾 Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="modal" id="deadlineModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">⏰ Изменение срока</div>
+                    <button class="close-btn" onclick="closeDeadlineModal()">&times;</button>
+                </div>
+
+                <form id="deadlineForm">
+                    <input type="hidden" id="deadlineTaskId">
+
+                    <div class="form-group">
+                        <label for="newDeadline">Новый срок выполнения:</label>
+                        <input type="date" id="newDeadline" class="form-control" required>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="action-btn btn-delete" onclick="closeDeadlineModal()">
+                            ❌ Отмена
+                        </button>
+                        <button type="submit" class="action-btn btn-complete">
+                            💾 Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Новые модальные окна для управления исполнителями -->
+        <div class="modal" id="manageUsersModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">👥 Управление исполнителями</div>
+                    <button class="close-btn" onclick="closeManageUsersModal()">&times;</button>
+                </div>
+
+                <form id="manageUsersForm">
+                    <input type="hidden" id="manageUsersTaskId">
+
+                    <div class="form-group">
+                        <label>Текущие исполнители:</label>
+                        <div id="currentUsersList" class="selected-users" style="display: none;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Добавить исполнителей:</label>
+                        <div class="checkbox-container" id="availableUsersContainer">
+                            <div class="loading">Загрузка пользователей...</div>
+                        </div>
+                        <div class="selected-users" id="newSelectedUsers" style="display: none;">
+                            <h4>Будут добавлены:</h4>
+                            <div id="newSelectedUsersList"></div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="action-btn btn-delete" onclick="closeManageUsersModal()">
+                            ❌ Отмена
+                        </button>
+                        <button type="submit" class="action-btn btn-complete">
+                            💾 Сохранить изменения
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script>
+            const API_BASE = '/api';
+            let currentFilter = 'all';
+            let currentUserFilter = 'all';
+            let currentSort = 'newest';
+            let autoRefreshInterval = null;
+            let allUsers = [];
+            let allGroups = [];
+            let selectedUsers = [];
+            let currentTasks = [];
+            let taskGroups = [];
+            let newSelectedUsers = [];
+
+            // Загрузка данных при старте
+            document.addEventListener('DOMContentLoaded', function () {
+                console.log("🚀 Инициализация веб-интерфейса...");
+                loadStats();
+                loadTasks();
+                loadUsers();
+                loadGroups();
+                setupEventListeners();
+
+                // Устанавливаем минимальную дату как сегодня
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('deadline').min = today;
+                document.getElementById('editDeadline').min = today;
+                document.getElementById('newDeadline').min = today;
+
+                // Автообновление каждые 10 секунд
+                autoRefreshInterval = setInterval(() => {
+                    loadTasks(currentFilter, currentUserFilter, currentSort);
+                    loadStats();
+                }, 10000);
+            });
+
+            // Загрузка пользователей для чекбоксов
+            async function loadUsers() {
+                try {
+                    console.log("👥 Загрузка пользователей...");
+                    const response = await fetch(`${API_BASE}/users`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+
+                    // Извлекаем всех пользователей из структуры данных
+                    const usersSet = new Set();
+
+                    // Пользователи из all_users
+                    if (data.all_users) {
+                        Object.keys(data.all_users).forEach(user => usersSet.add(user));
+                    }
+
+                    // Пользователи из групп
+                    if (data.groups) {
+                        Object.values(data.groups).forEach(group => {
+                            if (group.users) {
+                                Object.keys(group.users).forEach(user => usersSet.add(user));
+                            }
+                        });
+                    }
+
+                    allUsers = Array.from(usersSet).sort();
+                    console.log(`👥 Загружено пользователей: ${allUsers.length}`);
+                    displayUsersCheckboxes();
+
+                    // Заполняем фильтр пользователей
+                    const userFilter = document.getElementById('userFilter');
+                    userFilter.innerHTML = '<option value="all">Все сотрудники</option>';
+
+                    allUsers.forEach(user => {
+                        const option = document.createElement('option');
+                        option.value = user;
+                        option.textContent = user;
+                        userFilter.appendChild(option);
+                    });
+
+                } catch (error) {
+                    console.error('❌ Ошибка загрузки пользователей:', error);
+                    document.getElementById('usersCheckboxContainer').innerHTML =
+                        '<div class="error">Ошибка загрузки пользователей</div>';
+                }
+            }
+
+            // Загрузка групп (только групповые чаты)
+            async function loadGroups() {
+                try {
+                    console.log("🏠 Загрузка групп...");
+                    const response = await fetch(`${API_BASE}/users`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+
+                    // Извлекаем группы из данных пользователей
+                    const groups = [];
+                    if (data.groups) {
+                        for (const [groupId, groupData] of Object.entries(data.groups)) {
+                            // Фильтруем только групповые чаты (ID начинается с минуса)
+                            if (groupId.startsWith('-')) {
+                                groups.push({
+                                    id: groupId,
+                                    title: groupData.title || `Группа ${groupId}`
+                                });
+                            }
+                        }
+                    }
+
+                    allGroups = groups;
+                    console.log(`🏠 Загружено групп: ${allGroups.length}`);
+                    displayGroups();
+
+                } catch (error) {
+                    console.error('❌ Ошибка загрузки групп:', error);
+                    document.getElementById('groupsContainer').innerHTML =
+                        '<div class="error">Ошибка загрузки групп</div>';
+                }
+            }
+
+            // Отображение групп
+            function displayGroups() {
+                const container = document.getElementById('groupsContainer');
+
+                if (allGroups.length === 0) {
+                    container.innerHTML = '<div class="loading">Нет групповых чатов</div>';
+                    return;
+                }
+
+                container.innerHTML = allGroups.map(group => `
+                    <div class="group-item">
+                        <input type="radio" id="group_${group.id}" name="selectedGroup" value="${group.id}" 
+                            ${group.id === allGroups[0].id ? 'checked' : ''}>
+                        <label for="group_${group.id}">${escapeHtml(group.title)}</label>
+                    </div>
+                `).join('');
+            }
+
+            // Получение выбранной группы
+            function getSelectedGroup() {
+                const selectedGroup = document.querySelector('input[name="selectedGroup"]:checked');
+                return selectedGroup ? selectedGroup.value : null;
+            }
+
+            // Отображение чекбоксов пользователей
+            function displayUsersCheckboxes() {
+                const container = document.getElementById('usersCheckboxContainer');
+
+                if (allUsers.length === 0) {
+                    container.innerHTML = '<div class="loading">Нет пользователей</div>';
+                    return;
+                }
+
+                container.innerHTML = allUsers.map(user => `
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="user_${user}" value="${user}" onchange="toggleUserSelection('${user}')">
+                        <label for="user_${user}">${escapeHtml(user)}</label>
+                    </div>
+                `).join('');
+            }
+
+            // Отображение чекбоксов для добавления исполнителей
+            function displayAvailableUsersCheckboxes(excludeUsers = []) {
+                const container = document.getElementById('availableUsersContainer');
+
+                if (allUsers.length === 0) {
+                    container.innerHTML = '<div class="loading">Нет пользователей</div>';
+                    return;
+                }
+
+                const availableUsers = allUsers.filter(user => !excludeUsers.includes(user));
+
+                if (availableUsers.length === 0) {
+                    container.innerHTML = '<div class="loading">Нет доступных пользователей для добавления</div>';
+                    return;
+                }
+
+                container.innerHTML = availableUsers.map(user => `
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="available_user_${user}" value="${user}" onchange="toggleNewUserSelection('${user}')">
+                        <label for="available_user_${user}">${escapeHtml(user)}</label>
+                    </div>
+                `).join('');
+            }
+
+            // Обработка выбора пользователей
+            function toggleUserSelection(username) {
+                const checkbox = document.getElementById(`user_${username}`);
+
+                if (checkbox.checked) {
+                    if (!selectedUsers.includes(username)) {
+                        selectedUsers.push(username);
+                    }
+                } else {
+                    selectedUsers = selectedUsers.filter(user => user !== username);
+                }
+
+                updateSelectedUsersDisplay();
+            }
+
+            // Обработка выбора новых пользователей
+            function toggleNewUserSelection(username) {
+                const checkbox = document.getElementById(`available_user_${username}`);
+
+                if (checkbox.checked) {
+                    if (!newSelectedUsers.includes(username)) {
+                        newSelectedUsers.push(username);
+                    }
+                } else {
+                    newSelectedUsers = newSelectedUsers.filter(user => user !== username);
+                }
+
+                updateNewSelectedUsersDisplay();
+            }
+
+            // Обновление отображения выбранных пользователей
+            function updateSelectedUsersDisplay() {
+                const selectedUsersDiv = document.getElementById('selectedUsers');
+                const selectedUsersList = document.getElementById('selectedUsersList');
+
+                if (selectedUsers.length > 0) {
+                    selectedUsersDiv.style.display = 'block';
+                    selectedUsersList.innerHTML = selectedUsers.map(user =>
+                        `<span class="selected-user">${escapeHtml(user)}</span>`
+                    ).join('');
+                } else {
+                    selectedUsersDiv.style.display = 'none';
+                }
+            }
+
+            // Обновление отображения новых выбранных пользователей
+            function updateNewSelectedUsersDisplay() {
+                const newSelectedUsersDiv = document.getElementById('newSelectedUsers');
+                const newSelectedUsersList = document.getElementById('newSelectedUsersList');
+
+                if (newSelectedUsers.length > 0) {
+                    newSelectedUsersDiv.style.display = 'block';
+                    newSelectedUsersList.innerHTML = newSelectedUsers.map(user =>
+                        `<span class="selected-user">${escapeHtml(user)}</span>`
+                    ).join('');
+                } else {
+                    newSelectedUsersDiv.style.display = 'none';
+                }
+            }
+
+            // Загрузка статистики
+            async function loadStats() {
+                try {
+                    const response = await fetch(`${API_BASE}/stats`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const stats = await response.json();
+
+                    document.getElementById('statsContainer').innerHTML = `
+                        <div class="stat-card">
+                            <h3>Всего задач</h3>
+                            <div class="stat-number">${stats.total_tasks || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Активные</h3>
+                            <div class="stat-number">${stats.active_tasks || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Выполненные</h3>
+                            <div class="stat-number">${stats.completed_tasks || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Просроченные</h3>
+                            <div class="stat-number">${stats.overdue_tasks || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Пользователи</h3>
+                            <div class="stat-number">${stats.total_users || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Группы</h3>
+                            <div class="stat-number">${stats.total_groups || 0}</div>
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error('❌ Ошибка загрузки статистики:', error);
+                    document.getElementById('statsContainer').innerHTML =
+                        '<div class="error">Ошибка загрузки статистики</div>';
+                }
+            }
+
+            // Загрузка задач
+            async function loadTasks(statusFilter = 'all', userFilter = 'all', sort = 'newest') {
+                try {
+                    console.log(`📋 Загрузка задач: статус=${statusFilter}, пользователь=${userFilter}, сортировка=${sort}`);
+                    const response = await fetch(`${API_BASE}/tasks`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+
+                    if (!data.tasks) {
+                        throw new Error('Некорректный формат данных');
+                    }
+
+                    currentTasks = data.tasks || [];
+                    console.log(`📋 Загружено задач: ${currentTasks.length}`);
+                    groupTasks(currentTasks, statusFilter, userFilter, sort);
+                } catch (error) {
+                    console.error('❌ Ошибка загрузки задач:', error);
+                    document.getElementById('tasksContainer').innerHTML =
+                        '<div class="error">Ошибка загрузки задач</div>';
+                }
+            }
+
+            // Группировка задач по общим параметрам
+            function groupTasks(tasks, statusFilter, userFilter, sort) {
+                console.log(`🔄 Группировка ${tasks.length} задач...`);
+                // Группируем задачи по описанию, сроку и группе
+                const groupsMap = new Map();
+
+                tasks.forEach(task => {
+                    const groupKey = `${task.task_text}_${task.deadline}_${task.group_id}`;
+
+                    if (!groupsMap.has(groupKey)) {
+                        groupsMap.set(groupKey, {
+                            id: groupKey,
+                            task_text: task.task_text,
+                            deadline: task.deadline,
+                            group_id: task.group_id,
+                            created_at: task.created_at,
+                            tasks: []
+                        });
+                    }
+
+                    groupsMap.get(groupKey).tasks.push(task);
+                });
+
+                taskGroups = Array.from(groupsMap.values());
+                console.log(`🔄 Создано групп: ${taskGroups.length}`);
+
+                // Сортировка групп
+                taskGroups.sort((a, b) => {
+                    switch (sort) {
+                        case 'oldest':
+                            return new Date(a.created_at) - new Date(b.created_at);
+                        case 'deadline':
+                            const dateA = parseTaskDate(a.deadline);
+                            const dateB = parseTaskDate(b.deadline);
+                            if (!dateA && !dateB) return 0;
+                            if (!dateA) return 1;
+                            if (!dateB) return -1;
+                            return dateA - dateB;
+                        case 'newest':
+                        default:
+                            return new Date(b.created_at) - new Date(a.created_at);
+                    }
+                });
+
+                displayTaskGroups(taskGroups, statusFilter, userFilter);
+            }
+
+            // Отображение групп задач
+            function displayTaskGroups(groups, statusFilter, userFilter) {
+                const container = document.getElementById('tasksContainer');
+
+                if (groups.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <h3>Задачи отсутствуют</h3>
+                            <p>Создайте первую задачу, используя форму слева</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let filteredGroups = groups.filter(group => {
+                    // Фильтрация по статусу и пользователю на уровне группы
+                    const hasActiveTasks = group.tasks.some(task =>
+                        task.status === 'active' &&
+                        (userFilter === 'all' || task.assigned_to === userFilter)
+                    );
+                    const hasCompletedTasks = group.tasks.some(task =>
+                        task.status === 'completed' &&
+                        (userFilter === 'all' || task.assigned_to === userFilter)
+                    );
+                    const hasOverdueTasks = group.tasks.some(task =>
+                        task.status === 'active' &&
+                        isTaskOverdue(task) &&
+                        (userFilter === 'all' || task.assigned_to === userFilter)
+                    );
+
+                    if (statusFilter === 'active') return hasActiveTasks;
+                    if (statusFilter === 'completed') return hasCompletedTasks;
+                    if (statusFilter === 'overdue') return hasOverdueTasks;
+                    return true;
+                });
+
+                console.log(`👁️ Отфильтровано групп: ${filteredGroups.length} из ${groups.length}`);
+
+                if (filteredGroups.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔍</div>
+                            <h3>Задачи не найдены</h3>
+                            <p>Попробуйте изменить параметры фильтрации</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = filteredGroups.map(group => {
+                    const isOverdue = group.tasks.some(task => isTaskOverdue(task));
+                    const groupName = getGroupName(group.group_id);
+                    const completedCount = group.tasks.filter(task => task.status === 'completed').length;
+                    const totalCount = group.tasks.length;
+
+                    return `
+                <div class="task-group ${isOverdue ? 'overdue' : ''}">
+                    <div class="task-group-header">
+                        <div class="task-group-info">
+                            <div class="task-group-title">${escapeHtml(group.task_text)}</div>
+                            <div class="task-group-meta">
+                                <div><strong>⏰ Срок:</strong> ${group.deadline}</div>
+                                <div><strong>🏠 Группа:</strong> ${escapeHtml(groupName)}</div>
+                                <div><strong>📊 Прогресс:</strong> ${completedCount}/${totalCount}</div>
+                                ${isOverdue ? '<div><strong>🔴 ПРОСРОЧЕНО</strong></div>' : ''}
+                            </div>
+                        </div>
+                        <div class="task-group-actions">
+                            <button class="action-btn btn-edit" onclick="editTaskGroup('${group.id}')">
+                                ✏️ Изменить
+                            </button>
+                            <button class="action-btn btn-deadline" onclick="editTaskGroupDeadline('${group.id}')">
+                                ⏰ Срок
+                            </button>
+                            <button class="action-btn btn-manage-users" onclick="manageTaskGroupUsers('${group.id}')">
+                                👥 Исполнители
+                            </button>
+                        </div>
+                    </div>
+                    <div class="task-group-users">
+                        ${group.tasks.map(task => {
+                        const isTaskOverdueFlag = isTaskOverdue(task);
+                        const userDisplayName = escapeHtml(task.assigned_to);
+                        const userInitials = getInitials(task.assigned_to);
+
+                        return `
+                            <div class="task-user-item">
+                                <div class="task-user-info">
+                                    <div class="user-avatar">${userInitials}</div>
+                                    <div class="user-details">
+                                        <div class="user-name">${userDisplayName}</div>
+                                        <div class="user-status ${task.status === 'active' ? 'status-active' : 'status-completed'}">
+                                            ${task.status === 'active' ? '🟡 Активна' : '🟢 Выполнена'}
+                                            ${isTaskOverdueFlag ? ' 🔴 ПРОСРОЧЕНО' : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="task-user-actions">
+                                    ${task.status === 'active' ?
+                                `<button class="user-action-btn btn-complete" onclick="completeTask(${task.id})">
+                                                ✅ Выполнить
+                                            </button>` :
+                                `<button class="user-action-btn btn-reopen" onclick="reactivateTask(${task.id})">
+                                                🔄 Вернуть
+                                            </button>`
+                            }
+                                    <button class="user-action-btn btn-delete" onclick="removeUserFromTaskGroup('${group.id}', '${task.assigned_to}', ${task.id})">
+                                        🗑 Удалить
+                                    </button>
+                                </div>
+                            </div>
+                            `;
+                    }).join('')}
+                    </div>
+                </div>
+                `;
+                }).join('');
+            }
+
+            // Получение инициалов пользователя
+            function getInitials(username) {
+                if (!username) return '?';
+                // Убираем @ и берем первые 2 символа
+                const cleanName = username.replace('@', '');
+                return cleanName.substring(0, 2).toUpperCase();
+            }
+
+            // Получение названия группы по ID
+            function getGroupName(groupId) {
+                const group = allGroups.find(g => g.id === groupId);
+                return group ? group.title : `Группа ${groupId}`;
+            }
+
+            // Проверка просроченности задачи
+            function isTaskOverdue(task) {
+                if (task.status !== 'active') return false;
+                if (!task.deadline) return false;
+
+                try {
+                    const [day, month, year] = task.deadline.split('.');
+                    const deadline = new Date(year, month - 1, day);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    return deadline < today;
+                } catch {
+                    return false;
+                }
+            }
+
+            // Парсинг даты задачи
+            function parseTaskDate(dateStr) {
+                if (!dateStr) return null;
+                try {
+                    const [day, month, year] = dateStr.split('.');
+                    return new Date(year, month - 1, day);
+                } catch {
+                    return null;
+                }
+            }
+
+            // Создание задачи
+            async function createTask(taskData) {
+                try {
+                    console.log("🎯 Создание новой задачи:", taskData);
+                    const response = await fetch(`${API_BASE}/tasks`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(taskData)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (result.tasks) {
+                            console.log(`✅ Создано ${result.tasks.length} задач`);
+                            showNotification(`✅ Создано ${result.tasks.length} задач!`, 'success');
+                        } else {
+                            console.log(`✅ Создана 1 задача`);
+                            showNotification('✅ Задача создана!', 'success');
+                        }
+                        document.getElementById('taskForm').reset();
+                        // Сбрасываем выбранных пользователей
+                        selectedUsers = [];
+                        updateSelectedUsersDisplay();
+                        // Сбрасываем чекбоксы
+                        document.querySelectorAll('#usersCheckboxContainer input[type="checkbox"]').forEach(checkbox => {
+                            checkbox.checked = false;
+                        });
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                        loadStats();
+                    } else {
+                        console.error('❌ Ошибка создания задачи:', result.error);
+                        showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка создания задачи:', error);
+                    showNotification('❌ Ошибка создания задачи', 'error');
+                }
+            }
+
+            // Завершение задачи (индивидуальное)
+            async function completeTask(taskId) {
+                if (!confirm('Вы уверены, что хотите завершить эту задачу для данного пользователя?')) {
+                    return;
+                }
+
+                try {
+                    console.log(`✅ Завершение задачи #${taskId}`);
+                    const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ status: 'completed' })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        console.log(`✅ Задача #${taskId} завершена`);
+                        showNotification('✅ Задача завершена для пользователя!', 'success');
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                        loadStats();
+                    } else {
+                        console.error('❌ Ошибка завершения задачи:', result.error);
+                        showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка завершения задачи:', error);
+                    showNotification('❌ Ошибка завершения задачи', 'error');
+                }
+            }
+
+            // Возврат задачи в работу (индивидуальное)
+            async function reactivateTask(taskId) {
+                if (!confirm('Вы уверены, что хотите вернуть эту задачу в работу для данного пользователя?')) {
+                    return;
+                }
+
+                try {
+                    console.log(`🔄 Возврат задачи #${taskId} в работу`);
+                    const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ status: 'active' })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        console.log(`✅ Задача #${taskId} возвращена в работу`);
+                        showNotification('🔄 Задача возвращена в работу для пользователя!', 'success');
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                        loadStats();
+                    } else {
+                        console.error('❌ Ошибка возврата задачи:', result.error);
+                        showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка возврата задачи:', error);
+                    showNotification('❌ Ошибка возврата задачи', 'error');
+                }
+            }
+
+            // Удаление задачи (индивидуальное)
+            async function deleteTask(taskId) {
+                if (!confirm('Вы уверены, что хотите удалить эту задачу только для данного пользователя?')) {
+                    return;
+                }
+
+                try {
+                    console.log(`🗑 Удаление задачи #${taskId}`);
+                    const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        const message = result.remaining_in_group > 0
+                            ? `🗑 Задача удалена для пользователя! В группе осталось ${result.remaining_in_group} задач`
+                            : '🗑 Задача удалена!';
+                        console.log(`✅ Задача #${taskId} удалена, осталось в группе: ${result.remaining_in_group}`);
+                        showNotification(message, 'success');
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                        loadStats();
+                    } else {
+                        console.error('❌ Ошибка удаления задачи:', result.error);
+                        showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка удаления задачи:', error);
+                    showNotification('❌ Ошибка удаления задачи', 'error');
+                }
+            }
+
+            // Удаление пользователя из группы задач
+            async function removeUserFromTaskGroup(groupId, username, taskId) {
+                if (!confirm(`Вы уверены, что хотите удалить исполнителя ${username} из этой задачи?`)) {
+                    return;
+                }
+
+                try {
+                    console.log(`🗑 Удаление исполнителя ${username} из группы ${groupId}`);
+                    const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        console.log(`✅ Исполнитель ${username} удален из группы`);
+                        showNotification(`🗑 Исполнитель ${username} удален из задачи!`, 'success');
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                        loadStats();
+                    } else {
+                        console.error('❌ Ошибка удаления исполнителя:', result.error);
+                        showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка удаления исполнителя:', error);
+                    showNotification('❌ Ошибка удаления исполнителя', 'error');
+                }
+            }
+
+            // Редактирование группы задач
+            async function editTaskGroup(groupId) {
+                const group = taskGroups.find(g => g.id === groupId);
+                if (!group) return;
+
+                document.getElementById('editTaskId').value = groupId;
+                document.getElementById('editTaskScope').value = 'group';
+                document.getElementById('editTaskText').value = group.task_text;
+
+                // Преобразуем дату из формата ДД.ММ.ГГГГ в YYYY-MM-DD
+                if (group.deadline) {
+                    const [day, month, year] = group.deadline.split('.');
+                    document.getElementById('editDeadline').value = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                }
+
+                console.log(`✏️ Редактирование группы задач: ${groupId}`);
+                document.getElementById('editTaskModal').style.display = 'flex';
+            }
+
+            // Сохранение изменений группы задач
+            async function saveTaskGroupChanges(groupId, updateData) {
+                try {
+                    const group = taskGroups.find(g => g.id === groupId);
+                    if (!group) return;
+
+                    // Добавляем флаг групповой операции
+                    updateData.group_operation = true;
+
+                    // Берем первую задачу из группы для обновления (API само обновит все задачи группы)
+                    const firstTask = group.tasks[0];
+
+                    console.log(`💾 Сохранение изменений группы ${groupId} для ${group.tasks.length} задач`);
+
+                    const response = await fetch(`${API_BASE}/tasks/${firstTask.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(updateData)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (result.is_group_operation) {
+                            console.log(`✅ Обновлено ${result.tasks.length} задач в группе`);
+                            showNotification(`✏️ Обновлено ${result.tasks.length} задач в группе!`, 'success');
+                        } else {
+                            console.log(`✅ Обновлена 1 задача`);
+                            showNotification('✏️ Задача обновлена!', 'success');
+                        }
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                        closeEditModal();
+                    } else {
+                        console.error('❌ Ошибка обновления группы:', result.error);
+                        showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка обновления группы задач:', error);
+                    showNotification('❌ Ошибка обновления группы задач', 'error');
+                }
+            }
+
+            // Изменение срока для группы задач
+            async function editTaskGroupDeadline(groupId) {
+                const group = taskGroups.find(g => g.id === groupId);
+                if (!group) return;
+
+                document.getElementById('deadlineTaskId').value = groupId;
+
+                // Преобразуем текущую дату из формата ДД.ММ.ГГГГ в YYYY-MM-DD
+                if (group.deadline) {
+                    const [day, month, year] = group.deadline.split('.');
+                    document.getElementById('newDeadline').value = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                }
+
+                console.log(`⏰ Изменение срока для группы: ${groupId}`);
+                document.getElementById('deadlineModal').style.display = 'flex';
+            }
+
+            // Изменение срока для группы задач
+            async function changeTaskGroupDeadline(groupId, newDeadline) {
+                try {
+                    const group = taskGroups.find(g => g.id === groupId);
+                    if (!group) return;
+
+                    const updateData = {
+                        deadline: newDeadline,
+                        group_operation: true  // Флаг групповой операции
+                    };
+
+                    // Берем первую задачу из группы
+                    const firstTask = group.tasks[0];
+
+                    console.log(`⏰ Изменение срока группы ${groupId} для ${group.tasks.length} задач`);
+
+                    const response = await fetch(`${API_BASE}/tasks/${firstTask.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(updateData)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (result.is_group_operation) {
+                            console.log(`✅ Срок изменен для ${result.tasks.length} задач`);
+                            showNotification(`⏰ Срок изменен для ${result.tasks.length} задач в группе!`, 'success');
+                        } else {
+                            console.log(`✅ Срок изменен для 1 задачи`);
+                            showNotification('⏰ Срок изменен!', 'success');
+                        }
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                        closeDeadlineModal();
+                    } else {
+                        console.error('❌ Ошибка изменения срока:', result.error);
+                        showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка изменения срока группы задач:', error);
+                    showNotification('❌ Ошибка изменения срока группы задач', 'error');
+                }
+            }
+
+            // Управление исполнителями в группе задач
+            async function manageTaskGroupUsers(groupId) {
+                const group = taskGroups.find(g => g.id === groupId);
+                if (!group) return;
+
+                document.getElementById('manageUsersTaskId').value = groupId;
+
+                // Отображаем текущих исполнителей
+                const currentUsersList = document.getElementById('currentUsersList');
+                if (group.tasks.length > 0) {
+                    currentUsersList.style.display = 'block';
+                    currentUsersList.innerHTML = group.tasks.map(task =>
+                        `<span class="selected-user">${escapeHtml(task.assigned_to)}</span>`
+                    ).join('');
+                } else {
+                    currentUsersList.style.display = 'none';
+                }
+
+                // Получаем список уже назначенных пользователей
+                const existingUsers = group.tasks.map(task => task.assigned_to);
+
+                // Отображаем доступных пользователей (исключая уже назначенных)
+                displayAvailableUsersCheckboxes(existingUsers);
+
+                // Сбрасываем выбор новых пользователей
+                newSelectedUsers = [];
+                updateNewSelectedUsersDisplay();
+
+                console.log(`👥 Управление исполнителями группы: ${groupId}`);
+                document.getElementById('manageUsersModal').style.display = 'flex';
+            }
+
+            // Сохранение изменений в исполнителях группы задач
+            async function saveTaskGroupUsers(groupId, usersToAdd) {
+                try {
+                    const group = taskGroups.find(g => g.id === groupId);
+                    if (!group) return;
+
+                    if (usersToAdd.length === 0) {
+                        showNotification('ℹ️ Не выбраны пользователи для добавления', 'info');
+                        return;
+                    }
+
+                    console.log(`👥 Добавление ${usersToAdd.length} исполнителей в группу ${groupId}`);
+
+                    // Создаем новые задачи для каждого добавленного пользователя
+                    const taskData = {
+                        task_text: group.task_text,
+                        deadline: group.deadline,
+                        group_id: group.group_id,
+                        assigned_to: usersToAdd
+                    };
+
+                    const response = await fetch(`${API_BASE}/tasks`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(taskData)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        console.log(`✅ Добавлено ${result.tasks ? result.tasks.length : 1} новых задач`);
+                        showNotification(`👥 Добавлено ${result.tasks ? result.tasks.length : 1} исполнителей в задачу!`, 'success');
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                        loadStats();
+                        closeManageUsersModal();
+                    } else {
+                        console.error('❌ Ошибка добавления исполнителей:', result.error);
+                        showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка добавления исполнителей:', error);
+                    showNotification('❌ Ошибка добавления исполнителей', 'error');
+                }
+            }
+
+            // Закрытие модального окна редактирования
+            function closeEditModal() {
+                document.getElementById('editTaskModal').style.display = 'none';
+            }
+
+            // Закрытие модального окна изменения срока
+            function closeDeadlineModal() {
+                document.getElementById('deadlineModal').style.display = 'none';
+            }
+
+            // Закрытие модального окна управления исполнителями
+            function closeManageUsersModal() {
+                document.getElementById('manageUsersModal').style.display = 'none';
+                newSelectedUsers = [];
+            }
+
+            // Вспомогательные функции
+            function safeString(value) {
+                if (value === null || value === undefined) {
+                    return '';
+                }
+                if (Array.isArray(value)) {
+                    return value.join(', ');
+                }
+                return String(value);
+            }
+
+            function escapeHtml(unsafe) {
+                if (!unsafe) return '';
+                if (typeof unsafe !== 'string') {
+                    unsafe = String(unsafe);
+                }
+                return unsafe
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            function showNotification(message, type = 'info') {
+                // Удаляем существующие уведомления
+                document.querySelectorAll('.notification').forEach(notification => {
+                    notification.remove();
+                });
+
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.textContent = message;
+                document.body.appendChild(notification);
+
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.style.animation = 'slideOut 0.3s ease-in';
+                        setTimeout(() => {
+                            if (notification.parentNode) {
+                                notification.parentNode.removeChild(notification);
+                            }
+                        }, 300);
+                    }
+                }, 3000);
+            }
+
+            function formatDateForDisplay(dateString) {
+                if (!dateString) return '';
+                const date = new Date(dateString);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                return `${day}.${month}.${year}`;
+            }
+
+            // Настройка обработчиков событий
+            function setupEventListeners() {
+                // Форма создания задачи
+                document.getElementById('taskForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    const taskText = document.getElementById('taskText').value.trim();
+                    const deadline = document.getElementById('deadline').value;
+                    const selectedGroup = getSelectedGroup();
+
+                    if (!taskText || !deadline) {
+                        showNotification('❌ Заполните все поля', 'error');
+                        return;
+                    }
+
+                    if (selectedUsers.length === 0) {
+                        showNotification('❌ Выберите исполнителей', 'error');
+                        return;
+                    }
+
+                    if (!selectedGroup) {
+                        showNotification('❌ Выберите группу', 'error');
+                        return;
+                    }
+
+                    const formData = {
+                        task_text: taskText,
+                        assigned_to: selectedUsers,
+                        deadline: formatDateForDisplay(deadline),
+                        group_id: selectedGroup
+                    };
+
+                    createTask(formData);
+                });
+
+                // Форма редактирования задачи
+                document.getElementById('editTaskForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    const groupId = document.getElementById('editTaskId').value;
+                    const scope = document.getElementById('editTaskScope').value;
+                    const taskText = document.getElementById('editTaskText').value.trim();
+                    const deadline = document.getElementById('editDeadline').value;
+
+                    if (!taskText || !deadline) {
+                        showNotification('❌ Заполните все поля', 'error');
+                        return;
+                    }
+
+                    const updateData = {
+                        task_text: taskText,
+                        deadline: formatDateForDisplay(deadline)
+                    };
+
+                    if (scope === 'group') {
+                        saveTaskGroupChanges(groupId, updateData);
+                    }
+                });
+
+                // Форма изменения срока
+                document.getElementById('deadlineForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    const groupId = document.getElementById('deadlineTaskId').value;
+                    const newDeadline = document.getElementById('newDeadline').value;
+
+                    if (!newDeadline) {
+                        showNotification('❌ Введите новый срок', 'error');
+                        return;
+                    }
+
+                    changeTaskGroupDeadline(groupId, formatDateForDisplay(newDeadline));
+                });
+
+                // Форма управления исполнителями
+                document.getElementById('manageUsersForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    const groupId = document.getElementById('manageUsersTaskId').value;
+
+                    if (newSelectedUsers.length === 0) {
+                        showNotification('❌ Выберите исполнителей для добавления', 'error');
+                        return;
+                    }
+
+                    saveTaskGroupUsers(groupId, newSelectedUsers);
+                });
+
+                // Фильтры статуса
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        currentFilter = this.dataset.filter;
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                    });
+                });
+
+                // Фильтр по пользователю
+                document.getElementById('userFilter').addEventListener('change', function () {
+                    currentUserFilter = this.value;
+                    loadTasks(currentFilter, currentUserFilter, currentSort);
+                });
+
+                // Сортировка
+                document.getElementById('sortFilter').addEventListener('change', function () {
+                    currentSort = this.value;
+                    loadTasks(currentFilter, currentUserFilter, currentSort);
+                });
+            }
+
+            // Принудительное обновление данных
+            async function forceRefresh() {
+                try {
+                    showNotification('🔄 Обновление данных...', 'info');
+                    console.log('🔄 Принудительное обновление данных...');
+
+                    const response = await fetch(`${API_BASE}/refresh`, {
+                        method: 'POST'
+                    });
+
+                    if (response.ok) {
+                        loadTasks(currentFilter, currentUserFilter, currentSort);
+                        loadStats();
+                        loadUsers();
+                        loadGroups();
+                        console.log('✅ Данные обновлены');
+                        showNotification('✅ Данные обновлены!', 'success');
+                    } else {
+                        console.error('❌ Ошибка принудительного обновления');
+                        showNotification('❌ Ошибка обновления данных', 'error');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка принудительного обновления:', error);
+                    showNotification('❌ Ошибка обновления данных', 'error');
+                }
+            }
+
+            // Сделаем функции глобальными
+            window.forceRefresh = forceRefresh;
+            window.toggleUserSelection = toggleUserSelection;
+            window.toggleNewUserSelection = toggleNewUserSelection;
+            window.completeTask = completeTask;
+            window.reactivateTask = reactivateTask;
+            window.deleteTask = deleteTask;
+            window.removeUserFromTaskGroup = removeUserFromTaskGroup;
+            window.editTaskGroup = editTaskGroup;
+            window.editTaskGroupDeadline = editTaskGroupDeadline;
+            window.manageTaskGroupUsers = manageTaskGroupUsers;
+            window.closeEditModal = closeEditModal;
+            window.closeDeadlineModal = closeDeadlineModal;
+            window.closeManageUsersModal = closeManageUsersModal;
+        </script>
+    </body>
+
+    </html>

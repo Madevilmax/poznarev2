@@ -1,0 +1,103 @@
+{
+  "tasks": [
+    {
+      "id": 2,
+      "assigned_to": "@kate_smile907",
+      "assigned_by": "web_user",
+      "task_text": "112312312",
+      "deadline": "29.11.2025",
+      "status": "completed",
+      "created_at": "26.11.2025 10:08:31",
+      "completed_at": "26.11.2025 10:08:36",
+      "group_id": "-1002301403142"
+    },
+    {
+      "id": 4,
+      "assigned_to": "@Belle_Ann",
+      "assigned_by": "web_user",
+      "task_text": "112312312",
+      "deadline": "29.11.2025",
+      "status": "active",
+      "created_at": "26.11.2025 10:09:48",
+      "completed_at": "",
+      "group_id": "-1002301403142"
+    },
+    {
+      "id": 6,
+      "assigned_to": "@MS_Koltsova",
+      "assigned_by": "web_user",
+      "task_text": "логика",
+      "deadline": "29.11.2025",
+      "status": "active",
+      "created_at": "26.11.2025 10:09:48",
+      "completed_at": "",
+      "group_id": "-1002301403142"
+    },
+    {
+      "id": 7,
+      "assigned_to": "@poznarev",
+      "assigned_by": "web_user",
+      "task_text": "тест",
+      "deadline": "27.11.2025",
+      "status": "active",
+      "created_at": "26.11.2025 10:12:45",
+      "completed_at": "",
+      "group_id": "-1002301403142"
+    },
+    {
+      "id": 8,
+      "assigned_to": "@poznarev",
+      "assigned_by": "web_user",
+      "task_text": "тест 43",
+      "deadline": "28.11.2025",
+      "status": "completed",
+      "created_at": "26.11.2025 10:12:59",
+      "completed_at": "26.11.2025 10:18:51",
+      "group_id": "-1002301403142"
+    },
+    {
+      "id": 9,
+      "assigned_to": "@poznarev",
+      "assigned_by": "web_user",
+      "task_text": "тестивроание по логике",
+      "deadline": "29.11.2025",
+      "status": "completed",
+      "created_at": "26.11.2025 10:13:14",
+      "completed_at": "26.11.2025 10:18:52",
+      "group_id": "-1002301403142"
+    },
+    {
+      "id": 10,
+      "assigned_to": "@MS_Koltsova",
+      "assigned_by": "web_user",
+      "task_text": "1",
+      "deadline": "29.11.2025",
+      "status": "active",
+      "created_at": "26.11.2025 10:16:31",
+      "completed_at": "",
+      "group_id": "-1002301403142"
+    },
+    {
+      "id": 11,
+      "assigned_to": "@Pgagachkin",
+      "assigned_by": "web_user",
+      "task_text": "112312312",
+      "deadline": "29.11.2025",
+      "status": "active",
+      "created_at": "26.11.2025 10:16:31",
+      "completed_at": "",
+      "group_id": "-1002301403142"
+    },
+    {
+      "id": 12,
+      "assigned_to": "@RVOreshin",
+      "assigned_by": "web_user",
+      "task_text": "112312312",
+      "deadline": "29.11.2025",
+      "status": "active",
+      "created_at": "26.11.2025 10:16:31",
+      "completed_at": "",
+      "group_id": "-1002301403142"
+    }
+  ]
+}

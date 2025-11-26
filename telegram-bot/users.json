@@ -1,0 +1,267 @@
+{
+  "groups": {
+    "186951608": {
+      "@poznarev": {
+        "full_name": "Max Poznarev",
+        "added_at": "16.11.2025 01:37:07",
+        "last_seen": "16.11.2025 08:23:29"
+      },
+      "users": {
+        "@poznarev": {
+          "full_name": "Max Poznarev",
+          "last_seen": "26.11.2025 10:30:31"
+        },
+        "@Rastasova": {
+          "full_name": "Тихомирова Екатерина",
+          "added_at": "20.11.2025 14:06:40",
+          "last_seen": "20.11.2025 14:06:40"
+        }
+      },
+      "title": "Личный чат",
+      "created_at": "16.11.2025 13:15:24"
+    },
+    "-1002301403142": {
+      "@poznarev": {
+        "full_name": "Max Poznarev",
+        "added_at": "16.11.2025 02:06:59"
+      },
+      "title": "Тестовый чат по задачам",
+      "users": {
+        "@poznarev": {
+          "full_name": "Max Poznarev",
+          "added_at": "16.11.2025 13:49:39",
+          "last_seen": "21.11.2025 07:49:28"
+        }
+      },
+      "created_at": "16.11.2025 13:15:24"
+    },
+    "-1002314111436": {
+      "title": "Процессы БЕЗ БОССА",
+      "users": {
+        "@anyannet": {
+          "full_name": "Anna",
+          "added_at": "17.11.2025 09:26:14",
+          "last_seen": "17.11.2025 09:26:14"
+        },
+        "@RVOreshin": {
+          "full_name": "Роман Орешин",
+          "added_at": "17.11.2025 09:26:50",
+          "last_seen": "17.11.2025 09:26:50"
+        },
+        "@kate_smile907": {
+          "full_name": "Катерина",
+          "added_at": "17.11.2025 09:27:33",
+          "last_seen": "17.11.2025 09:33:26"
+        },
+        "@zabaluevaaa": {
+          "full_name": "Алиса М.",
+          "added_at": "17.11.2025 09:33:13",
+          "last_seen": "17.11.2025 09:33:13"
+        },
+        "@MS_Koltsova": {
+          "full_name": "MS Кольцова",
+          "added_at": "17.11.2025 09:43:22",
+          "last_seen": "17.11.2025 09:43:22"
+        },
+        "@poznarev": {
+          "full_name": "Max Poznarev",
+          "added_at": "17.11.2025 09:48:04",
+          "last_seen": "17.11.2025 09:48:04"
+        },
+        "@Yanni016": {
+          "full_name": "Ян",
+          "added_at": "17.11.2025 09:53:40",
+          "last_seen": "17.11.2025 09:54:15"
+        }
+      },
+      "created_at": "17.11.2025 09:26:14"
+    },
+    "958220768": {
+      "title": null,
+      "users": {
+        "@anyannet": {
+          "full_name": "Anna",
+          "added_at": "17.11.2025 09:27:41",
+          "last_seen": "17.11.2025 09:27:47"
+        }
+      },
+      "created_at": "17.11.2025 09:27:41"
+    },
+    "806792610": {
+      "title": null,
+      "users": {
+        "@kate_smile907": {
+          "full_name": "Катерина",
+          "added_at": "17.11.2025 09:29:55",
+          "last_seen": "23.11.2025 18:41:57"
+        }
+      },
+      "created_at": "17.11.2025 09:29:55"
+    },
+    "684097961": {
+      "title": null,
+      "users": {
+        "@teslaanna99": {
+          "full_name": "Anna Tesla🕊🆎",
+          "added_at": "17.11.2025 09:35:48",
+          "last_seen": "23.11.2025 12:48:12"
+        }
+      },
+      "created_at": "17.11.2025 09:35:48"
+    },
+    "822804381": {
+      "title": null,
+      "users": {
+        "@Sodlele": {
+          "full_name": "Ilya Mishin",
+          "added_at": "17.11.2025 09:36:03",
+          "last_seen": "17.11.2025 09:36:13"
+        }
+      },
+      "created_at": "17.11.2025 09:36:03"
+    },
+    "922589105": {
+      "title": null,
+      "users": {
+        "@Belle_Ann": {
+          "full_name": "Anna Migunova",
+          "added_at": "17.11.2025 10:28:16",
+          "last_seen": "23.11.2025 12:37:34"
+        }
+      },
+      "created_at": "17.11.2025 10:28:16"
+    },
+    "272916140": {
+      "title": "Группа 272916140",
+      "users": {
+        "@ElenaIvano": {
+          "full_name": "Elena Ivanova",
+          "added_at": "23.11.2025 12:34:48",
+          "last_seen": "23.11.2025 17:29:01"
+        }
+      },
+      "created_at": "23.11.2025 12:34:48"
+    },
+    "5236435888": {
+      "title": "Группа 5236435888",
+      "users": {
+        "@Pgagachkin": {
+          "full_name": "Павел",
+          "added_at": "25.11.2025 18:48:38",
+          "last_seen": "25.11.2025 18:57:23"
+        }
+      },
+      "created_at": "25.11.2025 18:48:38"
+    }
+  },
+  "all_users": {
+    "@poznarev": {
+      "full_name": "Max Poznarev",
+      "first_seen": "16.11.2025 13:15:48",
+      "groups": [
+        "186951608",
+        "-1002301403142",
+        "-1002314111436"
+      ],
+      "last_seen": "26.11.2025 10:30:31"
+    },
+    "@anyannet": {
+      "full_name": "Anna",
+      "first_seen": "17.11.2025 09:26:14",
+      "groups": [
+        "-1002314111436",
+        "958220768"
+      ],
+      "last_seen": "17.11.2025 09:27:47"
+    },
+    "@RVOreshin": {
+      "full_name": "Роман Орешин",
+      "first_seen": "17.11.2025 09:26:50",
+      "groups": [
+        "-1002314111436"
+      ],
+      "last_seen": "17.11.2025 09:26:50"
+    },
+    "@kate_smile907": {
+      "full_name": "Катерина",
+      "first_seen": "17.11.2025 09:27:33",
+      "groups": [
+        "-1002314111436",
+        "806792610"
+      ],
+      "last_seen": "23.11.2025 18:41:57"
+    },
+    "@zabaluevaaa": {
+      "full_name": "Алиса М.",
+      "first_seen": "17.11.2025 09:33:13",
+      "groups": [
+        "-1002314111436"
+      ],
+      "last_seen": "17.11.2025 09:33:13"
+    },
+    "@teslaanna99": {
+      "full_name": "Anna Tesla🕊🆎",
+      "first_seen": "17.11.2025 09:35:48",
+      "groups": [
+        "684097961"
+      ],
+      "last_seen": "23.11.2025 12:48:12"
+    },
+    "@Sodlele": {
+      "full_name": "Ilya Mishin",
+      "first_seen": "17.11.2025 09:36:03",
+      "groups": [
+        "822804381"
+      ],
+      "last_seen": "17.11.2025 09:36:13"
+    },
+    "@MS_Koltsova": {
+      "full_name": "MS Кольцова",
+      "first_seen": "17.11.2025 09:43:22",
+      "groups": [
+        "-1002314111436"
+      ],
+      "last_seen": "17.11.2025 09:43:22"
+    },
+    "@Yanni016": {
+      "full_name": "Ян",
+      "first_seen": "17.11.2025 09:53:40",
+      "groups": [
+        "-1002314111436"
+      ],
+      "last_seen": "17.11.2025 09:54:15"
+    },
+    "@Belle_Ann": {
+      "full_name": "Anna Migunova",
+      "first_seen": "17.11.2025 10:28:16",
+      "groups": [
+        "922589105"
+      ],
+      "last_seen": "23.11.2025 12:37:34"
+    },
+    "@Rastasova": {
+      "full_name": "Тихомирова Екатерина",
+      "first_seen": "20.11.2025 14:06:40",
+      "groups": [
+        "186951608"
+      ],
+      "last_seen": "20.11.2025 14:06:40"
+    },
+    "@ElenaIvano": {
+      "full_name": "Elena Ivanova",
+      "first_seen": "23.11.2025 12:34:48",
+      "groups": [
+        "272916140"
+      ],
+      "last_seen": "23.11.2025 17:29:01"
+    },
+    "@Pgagachkin": {
+      "full_name": "Павел",
+      "first_seen": "25.11.2025 18:48:38",
+      "groups": [
+        "5236435888"
+      ],
+      "last_seen": "25.11.2025 18:57:23"
+    }
+  }
+}
